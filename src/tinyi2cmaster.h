@@ -15,6 +15,8 @@
 #include <stdint.h>
 #include <util/delay.h>
 
+#include "pins.h"
+
 // Defines
 #define TWI_FAST_MODE
 
@@ -30,9 +32,19 @@
 
 // Constants
 // Prepare register value to: Clear flags, and set USI to shift 8 bits i.e. count 16 clock edges.
-const unsigned char USISR_8bit = 1 << USISIF | 1 << USIOIF | 1 << USIPF | 1 << USIDC | 0x0 << USICNT0;
+const unsigned char USISR_8bit = 1 << USISIF | 1 << USIOIF | 1 << USIPF | 1 << USIDC |
+#if PB_I2C_SCL == PINB2
+                                 0x0 << USICNT0;
+#else
+                                 0x8 << USICNT0;
+#endif
 // Prepare register value to: Clear flags, and set USI to shift 1 bit i.e. count 2 clock edges.
-const unsigned char USISR_1bit = 1 << USISIF | 1 << USIOIF | 1 << USIPF | 1 << USIDC | 0xE << USICNT0;
+const unsigned char USISR_1bit = 1 << USISIF | 1 << USIOIF | 1 << USIPF | 1 << USIDC |
+#if PB_I2C_SCL == PINB2
+                                 0xE << USICNT0;
+#else
+                                 0xF << USICNT0;
+#endif
 
 class TinyI2CMaster {
   public:
@@ -44,10 +56,11 @@ class TinyI2CMaster {
     bool Start(uint8_t address, int readcount);
     bool Restart(uint8_t address, int readcount);
     void Stop(void);
+    void End(void);
 
   private:
     int I2Ccount;
-    uint8_t Transfer(uint8_t data);
+    uint8_t Transfer(uint8_t data, bool write);
 };
 
 extern TinyI2CMaster TinyI2C;

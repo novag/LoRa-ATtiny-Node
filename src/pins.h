@@ -2,6 +2,11 @@
 #define PINS_H
 
 /*** ATtiny85 ***/
+#define DDR_I2C_SCL DDRB
+#define PRT_I2C_SCL PORTB
+#define PIN_I2C_SCL PINB
+#define PB_I2C_SCL  PB4
+
 #define DDR_RFM_NSS DDRB
 #define PRT_RFM_NSS PORTB
 #define PIN_RFM_NSS PINB

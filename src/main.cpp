@@ -26,6 +26,7 @@
 #include "config.h"
 #include "error.h"
 #include "pins.h"
+#include "tinyi2cmaster.h"
 #include "tinylora.h"
 #include "tinyspi.h"
 #include "utils.h"
@@ -151,15 +152,20 @@ int main() {
 
     _delay_ms(1000);
 
-#if !ENABLE_SI7021
-    SPI.SetDataMode(SPI_MODE0);
-    SPI.Init();
-#endif
+    SETBIT(DDR_I2C_SCL, PB_I2C_SCL);
+    CLEARBIT(PRT_I2C_SCL, PB_I2C_SCL);
 
     SETBIT(DDR_RFM_NSS, PB_RFM_NSS);
     SETBIT(PRT_RFM_NSS, PB_RFM_NSS);
 
+    SPI.SetDataMode(SPI_MODE0);
+    SPI.Init();
+
     lora.init();
+
+#if !ENABLE_SI7021
+    SPI.End();
+#endif
 
     for (;;) {
         if (wakeup_count >= SLEEP_TOTAL) {
@@ -185,6 +191,7 @@ int main() {
                     break;
             }
 #elif ENABLE_SI7021
+            TinyI2C.Init();
             si7021.Init();
 
             humidity = si7021.MeasureHumidity();
@@ -208,6 +215,8 @@ int main() {
                     temperature = 0xFFFF;
                     break;
             }
+
+            TinyI2C.End();
 #else
             humidity = temperature = 0xFFFF;
 #endif
@@ -227,6 +236,9 @@ int main() {
 #endif
             lora.transmit(payload, payload_length, lora.frame_counter);
             lora.frame_counter++;
+#if ENABLE_SI7021
+            SPI.End();
+#endif
 
             wakeup_count = 0;
         }

@@ -31,8 +31,6 @@ Si7021::Si7021(uint8_t i2c_addr) {
 }
 
 bool Si7021::Init() {
-    TinyI2C.Init();
-
     Si7021::Reset();
     uint8_t res = Si7021::ReadRegister8(SI7021_READ_TEMPERATURE_FROM_PREVIOUS_RH_MEASUREMENT);
 
