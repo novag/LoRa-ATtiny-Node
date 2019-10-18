@@ -14,6 +14,9 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http:// www.gnu.org/licenses/>.
  */
+#include "config.h"
+#if ENABLE_DHT22
+
 #include <avr/wdt.h>
 #include <stdio.h>
 #include <util/delay.h>
@@ -110,3 +113,5 @@ uint16_t DHT22::GetHumidity() {
 uint16_t DHT22::GetTemperature() {
     return (mData[2] << 8) + mData[3];
 }
+
+#endif // ENABLE_DHT22

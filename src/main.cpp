@@ -24,12 +24,19 @@
 #include <util/delay.h>
 
 #include "config.h"
-#include "dht22.h"
 #include "error.h"
 #include "pins.h"
 #include "tinylora.h"
 #include "tinyspi.h"
 #include "utils.h"
+
+#if ENABLE_DHT22
+#include "dht22.h"
+#elif ENABLE_SI7021
+#include "si7021.h"
+#else
+#warning "No sensor enabled. Using fake temp."
+#endif
 
 #define SLEEP_TOTAL 1 // 113*8s = 904s ~15min
 
@@ -136,12 +143,18 @@ int main() {
     uint8_t status;
     uint16_t voltage, temperature, humidity;
     TinyLoRa lora;
+#if ENABLE_DHT22
     DHT22 dht22;
+#elif ENABLE_SI7021
+    Si7021 si7021(0x40);
+#endif
 
     _delay_ms(1000);
 
+#if !ENABLE_SI7021
     SPI.SetDataMode(SPI_MODE0);
     SPI.Init();
+#endif
 
     SETBIT(DDR_RFM_NSS, PB_RFM_NSS);
     SETBIT(PRT_RFM_NSS, PB_RFM_NSS);
@@ -157,9 +170,7 @@ int main() {
             CLEARBIT(status, SENSOR_ERROR);
             CLEARBIT(status, CHECKSUM_ERROR);
 
-#ifdef FAKETEMP
-            humidity = temperature = 0xFFFF;
-#else
+#if ENABLE_DHT22
             switch (dht22.ReadData()) {
                 case -1:
                     SETBIT(status, CHECKSUM_ERROR);
@@ -171,7 +182,34 @@ int main() {
                 default:
                     SETBIT(status, SENSOR_ERROR);
                     humidity = temperature = 0xFFFF;
+                    break;
             }
+#elif ENABLE_SI7021
+            si7021.Init();
+
+            humidity = si7021.MeasureHumidity();
+            switch (humidity) {
+                case SI7021_CHECKSUM_ERROR:
+                    SETBIT(status, CHECKSUM_ERROR);
+                    break;
+                case SI7021_TIMEOUT_ERROR:
+                    SETBIT(status, SENSOR_ERROR);
+                    humidity = 0xFFFF;
+                    break;
+            }
+
+            temperature = si7021.ReadTemperature();
+            switch (temperature) {
+                case SI7021_CHECKSUM_ERROR:
+                    SETBIT(status, CHECKSUM_ERROR);
+                    break;
+                case SI7021_TIMEOUT_ERROR:
+                    SETBIT(status, SENSOR_ERROR);
+                    temperature = 0xFFFF;
+                    break;
+            }
+#else
+            humidity = temperature = 0xFFFF;
 #endif
 
             voltage = read_voltage();
@@ -183,6 +221,10 @@ int main() {
             payload[4] = (humidity >> 8) & 0xFF;
             payload[5] = humidity & 0xFF;
 
+#if ENABLE_SI7021
+            SPI.SetDataMode(SPI_MODE0);
+            SPI.Init();
+#endif
             lora.transmit(payload, payload_length, lora.frame_counter);
             lora.frame_counter++;
 
