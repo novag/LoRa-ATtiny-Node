@@ -130,7 +130,6 @@ uint16_t read_voltage() {
 }
 
 int main() {
-    _delay_ms(500);
     /*
      * 0[7-5]: Status
      * 0[4-0]: Voltage H
@@ -150,6 +149,10 @@ int main() {
     Si7021 si7021(0x40);
 #endif
 
+#ifdef DEBUG
+    debug("Booted.\n");
+#endif
+
     _delay_ms(1000);
 
     SETBIT(DDR_I2C_SCL, PB_I2C_SCL);
@@ -161,10 +164,13 @@ int main() {
     SPI.SetDataMode(SPI_MODE0);
     SPI.Init();
 
-    lora.init();
+    lora.Init();
 
 #if !ENABLE_SI7021
     SPI.End();
+#endif
+#ifdef DEBUG
+    debug("LoRa init done.\n");
 #endif
 
     for (;;) {
@@ -234,8 +240,7 @@ int main() {
             SPI.SetDataMode(SPI_MODE0);
             SPI.Init();
 #endif
-            lora.transmit(payload, payload_length, lora.frame_counter);
-            lora.frame_counter++;
+            lora.Transmit(payload, payload_length);
 #if ENABLE_SI7021
             SPI.End();
 #endif

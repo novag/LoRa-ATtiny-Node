@@ -19,6 +19,7 @@
 #include "basicserial.h"
 #endif
 
+#include <avr/eeprom.h>
 #include <avr/pgmspace.h>
 #include <string.h>
 #include <util/delay.h>
@@ -28,17 +29,51 @@
 #include "tinylora.h"
 #include "tinyspi.h"
 
-extern uint8_t NwkSKey[16];
-extern uint8_t AppSKey[16];
-extern uint8_t DevAddr[4];
+extern const uint8_t NwkSKey[16];
+extern const uint8_t AppSKey[16];
+extern const uint8_t DevAddr[4];
+
 extern TinySPI SPI;
+
+/*
+*****************************************************************************************
+* Description: Frequency band Europe
+*****************************************************************************************
+*/
+const uint8_t PROGMEM TinyLoRa::FrequencyTable[9][3] = {
+    { 0xD9, 0x06, 0x8B }, // Channel 0 868.100 MHz / 61.035 Hz = 14222987 = 0xD9068B
+    { 0xD9, 0x13, 0x58 }, // Channel 1 868.300 MHz / 61.035 Hz = 14226264 = 0xD91358
+    { 0xD9, 0x20, 0x24 }, // Channel 2 868.500 MHz / 61.035 Hz = 14229540 = 0xD92024
+    { 0xD8, 0xC6, 0x8B }, // Channel 3 867.100 MHz / 61.035 Hz = 14206603 = 0xD8C68B
+    { 0xD8, 0xD3, 0x58 }, // Channel 4 867.300 MHz / 61.035 Hz = 14209880 = 0xD8D358
+    { 0xD8, 0xE0, 0x24 }, // Channel 5 867.500 MHz / 61.035 Hz = 14213156 = 0xD8E024
+    { 0xD8, 0xEC, 0xF1 }, // Channel 6 867.700 MHz / 61.035 Hz = 14216433 = 0xD8ECF1
+    { 0xD8, 0xF9, 0xBE }, // Channel 7 867.900 MHz / 61.035 Hz = 14219710 = 0xD8F9BE
+    { 0xD9, 0x61, 0xBE }  // Downlink  869.525 MHz / 61.035 Hz = 14246334 = 0xD961BE
+};
+
+/*
+*****************************************************************************************
+* Description: Spreading factors
+*****************************************************************************************
+*/
+const uint8_t PROGMEM TinyLoRa::SFTable[7][3] = {
+    // bw    sf   agc
+    { 0x72, 0x74, 0x04 }, // SF7BW125
+    { 0x82, 0x74, 0x04 }, // SF7BW250
+    { 0x72, 0x84, 0x04 }, // SF8BW125
+    { 0x72, 0x94, 0x04 }, // SF9BW125
+    { 0x72, 0xA4, 0x04 }, // SF10BW125
+    { 0x72, 0xB4, 0x0C }, // SF11BW125
+    { 0x72, 0xC4, 0x0C }  // SF12BW125
+};
 
 /*
 *****************************************************************************************
 * Description: S_Table used for AES encription
 *****************************************************************************************
 */
-const unsigned char PROGMEM TinyLoRa::S_Table[16][16] = {
+const uint8_t PROGMEM TinyLoRa::S_Table[16][16] = {
     {0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76},
     {0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0},
     {0xB7, 0xFD, 0x93, 0x26, 0x36, 0x3F, 0xF7, 0xCC, 0x34, 0xA5, 0xE5, 0xF1, 0x71, 0xD8, 0x31, 0x15},
@@ -57,126 +92,91 @@ const unsigned char PROGMEM TinyLoRa::S_Table[16][16] = {
     {0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16}
 };
 
-void TinyLoRa::init() {
+void TinyLoRa::Init() {
     // Sleep
-    RFM_Write(RFM_REG_OP_MODE, 0x00);
+    RfmWrite(RFM_REG_OP_MODE, 0x00);
 
     // LoRa mode
-    RFM_Write(RFM_REG_OP_MODE, 0x80);
+    RfmWrite(RFM_REG_OP_MODE, 0x80);
 
     // PA pin (maximal power)
-    RFM_Write(RFM_REG_PA_CONFIG, 0xFF);
+    RfmWrite(RFM_REG_PA_CONFIG, 0xFF);
 
     // Rx timeout: 37 symbols
-    RFM_Write(RFM_REG_SYMB_TIMEOUT_LSB, 0x25);
+    RfmWrite(RFM_REG_SYMB_TIMEOUT_LSB, 0x25);
 
     // Preamble length: 8 symbols
     // 0x0008 + 4 = 12
-    RFM_Write(RFM_REG_PREAMBLE_MSB, 0x00);
-    RFM_Write(RFM_REG_PREAMBLE_LSB, 0x08);
+    RfmWrite(RFM_REG_PREAMBLE_MSB, 0x00);
+    RfmWrite(RFM_REG_PREAMBLE_LSB, 0x08);
 
     // Low datarate optimization off, AGC auto on
-    RFM_Write(RFM_REG_MODEM_CONFIG_3, 0x0C);
+    RfmWrite(RFM_REG_MODEM_CONFIG_3, 0x0C);
 
     // LoRa sync word
-    RFM_Write(RFM_REG_SYNC_WORD, 0x34);
-
-    // Set IQ to normal values
-    RFM_Write(RFM_REG_INVERT_IQ, 0x27);
-    RFM_Write(0x3B, 0x1D);
+    RfmWrite(RFM_REG_SYNC_WORD, 0x34);
 
     // FIFO pointers
-    RFM_Write(RFM_REG_FIFO_TX_BASE_ADDR, 0x80);
-    RFM_Write(RFM_REG_FIFO_RX_BASE_ADDR, 0x00);
-
-    uint16_t frame_counter = 0;
+    RfmWrite(RFM_REG_FIFO_TX_BASE_ADDR, 0x80);
+    RfmWrite(RFM_REG_FIFO_RX_BASE_ADDR, 0x00);
 }
 
 /*
 *****************************************************************************************
-* Description : Function for sending a package with the RFM
+* Description : Function for sending a packet using the RFM
 *
-* Arguments   : *RFM_Tx_Package Pointer to arry with data to be send
-*               Package_Length  Length of the package to send
+* Arguments   : *packet Pointer to array with data to be send
+*               packet_length Length of the packet to send
 *****************************************************************************************
 */
-void TinyLoRa::RFM_Send_Package(unsigned char *tx_package, unsigned char tx_package_length) {
-    // unsigned char TxDone = 0x00;
-
-    // Set RFM in Standby mode wait on mode ready
-    RFM_Write(RFM_REG_OP_MODE, 0x81);
+void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length) {
+    // Switch RFM to standby
+    RfmWrite(RFM_REG_OP_MODE, 0x81);
 
     // wait for standby mode
-    _delay_ms(10);
+    while (RfmRead(RFM_REG_OP_MODE) != 0x81);
 
-    unsigned char res = RFM_Read(RFM_REG_OP_MODE);
-#ifdef DEBUG
-    ssend("incoming: ");
-    TxByte(res);
-    ssend(" ok\n");
-#endif
+    // Don't invert IQ
+    RfmWrite(RFM_REG_INVERT_IQ, 0x27);
+    RfmWrite(RFM_REG_INVERT_IQ_2, 0x1D);
 
-    // change the channel of the RFM module
-    //switch (random_num) {
-    switch (0) {
-        case 0x00: // Channel 0 868.100 MHz / 61.035 Hz = 14222987 = 0xD9068B
-            RFM_Write(RFM_REG_FR_MSB, 0xD9);
-            RFM_Write(RFM_REG_FR_MID, 0x06);
-            RFM_Write(RFM_REG_FR_LSB, 0x8B);
-            break;
-        case 0x01: // Channel 1 868.300 MHz / 61.035 Hz = 14226264 = 0xD91358
-            RFM_Write(RFM_REG_FR_MSB, 0xD9);
-            RFM_Write(RFM_REG_FR_MID, 0x13);
-            RFM_Write(RFM_REG_FR_LSB, 0x58);
-            break;
-        case 0x02: // Channel 2 868.500 MHz / 61.035 Hz = 14229540 = 0xD92024
-            RFM_Write(RFM_REG_FR_MSB, 0xD9);
-            RFM_Write(RFM_REG_FR_MID, 0x20);
-            RFM_Write(RFM_REG_FR_LSB, 0x24);
-            break;
-        case 0x03: // Channel 3 867.100 MHz / 61.035 Hz = 14206603 = 0xD8C68B
-            RFM_Write(RFM_REG_FR_MSB, 0xD8);
-            RFM_Write(RFM_REG_FR_MID, 0xC6);
-            RFM_Write(RFM_REG_FR_LSB, 0x8B);
-            break;
-    }
-
-    // SF7 BW 125 kHz
-    //RFM_Write(RFM_REG_MODEM_CONFIG_2, 0x74); // SF7 CRC On
+    // Channel
+    RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(FrequencyTable[0][0])));
+    RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[0][1])));
+    RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[0][2])));
 
     // SF10 BW 125 kHz
-    RFM_Write(RFM_REG_MODEM_CONFIG_2, 0xA4); // SF10 CRC On
-    RFM_Write(RFM_REG_MODEM_CONFIG_1, 0x72); // 125 kHz 4/5 coding rate explicit header mode
-    RFM_Write(RFM_REG_MODEM_CONFIG_3, 0x04); // Low datarate optimization off AGC auto on
-    //
+    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(SFTable[SF9BW125][0])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(SFTable[SF9BW125][1])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(SFTable[SF9BW125][2])));
 
     // Set payload length to the right length
-    RFM_Write(RFM_REG_PAYLOAD_LENGTH, tx_package_length);
+    RfmWrite(RFM_REG_PAYLOAD_LENGTH, packet_length);
 
     // Set SPI pointer to start of Tx part in FiFo
-    RFM_Write(RFM_REG_FIFO_ADDR_PTR, 0x80);
+    RfmWrite(RFM_REG_FIFO_ADDR_PTR, 0x80);
 
     // Write Payload to FiFo
-    for (unsigned char i = 0; i < tx_package_length; i++) {
-        RFM_Write(RFM_REG_FIFO, *tx_package);
-        tx_package++;
+    for (uint8_t i = 0; i < packet_length; i++) {
+        RfmWrite(RFM_REG_FIFO, *packet);
+        packet++;
     }
 
     // Switch RFM to Tx
-    RFM_Write(RFM_REG_OP_MODE, 0x83);
+    RfmWrite(RFM_REG_OP_MODE, 0x83);
 
     // Wait for TxDone in the RegIrqFlags register
-    while ((RFM_Read(RFM_REG_IRQ_FLAGS) & 0x08) != 0x08);
+    while ((RfmRead(RFM_REG_IRQ_FLAGS) & 0x08) != 0x08);
 
 #ifdef DEBUG
-    ssend("TXDONE\n");
+    debug("D: RSP: TxDone\n");
 #endif
 
     // Clear interrupt
-    RFM_Write(RFM_REG_IRQ_FLAGS, 0x08);
+    RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
     // Switch RFM to sleep
-    RFM_Write(RFM_REG_OP_MODE, 0x00);
+    RfmWrite(RFM_REG_OP_MODE, 0x00);
 }
 
 /*
@@ -188,7 +188,7 @@ void TinyLoRa::RFM_Send_Package(unsigned char *tx_package, unsigned char tx_pack
 *               data    Data to be written
 *****************************************************************************************
 */
-void TinyLoRa::RFM_Write(unsigned char address, unsigned char data) {
+void TinyLoRa::RfmWrite(uint8_t address, uint8_t data) {
     // Set NSS pin Low to start communication
     PRT_RFM_NSS &= ~(1 << PB_RFM_NSS);
 
@@ -210,8 +210,8 @@ void TinyLoRa::RFM_Write(unsigned char address, unsigned char data) {
 * Returns   : Value of the register
 *****************************************************************************************
 */
-unsigned char TinyLoRa::RFM_Read(unsigned char address) {
-    unsigned char data;
+uint8_t TinyLoRa::RfmRead(uint8_t address) {
+    uint8_t data;
 
     // Set NSS pin low to start SPI communication
     PRT_RFM_NSS &= ~(1 << PB_RFM_NSS);
@@ -230,64 +230,62 @@ unsigned char TinyLoRa::RFM_Read(unsigned char address) {
 
 /*
 *****************************************************************************************
-* Description : Function contstructs a LoRaWAN package and sends it
+* Description : Function contstructs a LoRaWAN packet and sends it
 *
 * Arguments   : *payload pointer to the array of data that will be transmitted
 *               payload_length nuber of bytes to be transmitted
-*               tx_frame_counter  Frame counter of upstream frames
 *****************************************************************************************
 */
-void TinyLoRa::transmit(unsigned char *payload, unsigned char payload_length, unsigned int tx_frame_counter) {
+void TinyLoRa::Transmit(uint8_t *payload, uint8_t payload_length) {
     // Direction up
-    unsigned char direction = 0x00;
+    uint8_t direction = 0x00;
 
-    unsigned char rfm_data[64];
-    unsigned char rfm_data_length;
+    uint8_t packet[64];
+    uint8_t packet_length;
 
-    unsigned char mic[4];
+    uint8_t mic[4];
 
-    unsigned char mac_header = LORAWAN_MTYPE_UNCONFIRMED_DATA_UP;
+    uint8_t mac_header = LORAWAN_MTYPE_UNCONFIRMED_DATA_UP;
 
-    unsigned char frame_control = 0x00;
-    unsigned char frame_port = 0x01;
+    uint8_t frame_control = 0;
+    uint8_t frame_port = 1;
 
     // Encrypt the data
-    encrypt_payload(payload, payload_length, tx_frame_counter, direction);
+    EncryptPayload(payload, payload_length, mTxFrameCounter, direction);
 
+    // Build the packet
+    packet[0] = mac_header;
 
-    // Build the Radio Package
-    rfm_data[0] = mac_header;
+    packet[1] = DevAddr[3];
+    packet[2] = DevAddr[2];
+    packet[3] = DevAddr[1];
+    packet[4] = DevAddr[0];
 
-    rfm_data[1] = DevAddr[3];
-    rfm_data[2] = DevAddr[2];
-    rfm_data[3] = DevAddr[1];
-    rfm_data[4] = DevAddr[0];
+    packet[5] = frame_control;
 
-    rfm_data[5] = frame_control;
+    packet[6] = mTxFrameCounter & 0xFF;
+    packet[7] = mTxFrameCounter >> 8;
 
-    rfm_data[6] = (tx_frame_counter & 0x00FF);
-    rfm_data[7] = ((tx_frame_counter >> 8) & 0x00FF);
+    packet[8] = frame_port;
 
-    rfm_data[8] = frame_port;
-
-    rfm_data_length = 9;
+    packet_length = 9;
 
     // Load Data
-    for (unsigned char i = 0; i < payload_length; i++) {
-        rfm_data[rfm_data_length + i] = payload[i];
+    for (uint8_t i = 0; i < payload_length; i++) {
+        packet[packet_length + i] = payload[i];
     }
-    rfm_data_length += payload_length;
+    packet_length += payload_length;
 
     // Calculate MIC
-    calculate_mic(rfm_data, mic, rfm_data_length, tx_frame_counter, direction);
-    // Load MIC in package
-    for (unsigned char i = 0; i < 4; i++) {
-        rfm_data[i + rfm_data_length] = mic[i];
+    CalculateUplinkMic(packet, mic, packet_length, mTxFrameCounter, direction);
+    for (uint8_t i = 0; i < 4; i++) {
+        packet[i + packet_length] = mic[i];
     }
-    rfm_data_length += 4;
+    packet_length += 4;
 
-    // Send Package
-    RFM_Send_Package(rfm_data, rfm_data_length);
+    RfmSendPacket(packet, packet_length);
+
+    mTxFrameCounter++;
 }
 
 /*
@@ -295,16 +293,16 @@ void TinyLoRa::transmit(unsigned char *payload, unsigned char payload_length, un
 * Description : Function used to encrypt and decrypt the data in a LoRaWAN data message
 *
 * Arguments   : *payload pointer to the data to de/encrypt
-*               payload_length nuber of bytes to be transmitted
-*               frame_counter  Frame counter of upstream frames
-*               direction of msg is up
+*               payload_length number of bytes to process
+*               frame_counter Frame counter of upstream frames
+*               direction Direction of message
 *****************************************************************************************
 */
-void TinyLoRa::encrypt_payload(unsigned char *payload, unsigned char payload_length, unsigned int frame_counter, unsigned char direction) {
-    unsigned char block_count = 0x00;
-    unsigned char incomplete_block_size = 0x00;
+void TinyLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned int frame_counter, uint8_t direction) {
+    uint8_t block_count = 0;
+    uint8_t incomplete_block_size = 0;
 
-    unsigned char block_a[16];
+    uint8_t block_a[16];
 
     // Calculate number of blocks
     block_count = payload_length / 16;
@@ -313,7 +311,7 @@ void TinyLoRa::encrypt_payload(unsigned char *payload, unsigned char payload_len
         block_count++;
     }
 
-    for (unsigned char i = 1; i <= block_count; i++) {
+    for (uint8_t i = 1; i <= block_count; i++) {
         block_a[0] = 0x01;
         block_a[1] = 0x00;
         block_a[2] = 0x00;
@@ -327,10 +325,10 @@ void TinyLoRa::encrypt_payload(unsigned char *payload, unsigned char payload_len
         block_a[8] = DevAddr[1];
         block_a[9] = DevAddr[0];
 
-        block_a[10] = (frame_counter & 0x00FF);
-        block_a[11] = ((frame_counter >> 8) & 0x00FF);
+        block_a[10] = frame_counter & 0xFF;
+        block_a[11] = frame_counter >> 8;
 
-        block_a[12] = 0x00; // Frame counter upper Bytes
+        block_a[12] = 0x00; // Frame counter upper bytes
         block_a[13] = 0x00;
 
         block_a[14] = 0x00;
@@ -338,12 +336,11 @@ void TinyLoRa::encrypt_payload(unsigned char *payload, unsigned char payload_len
         block_a[15] = i;
 
         // Calculate S
-        AES_Encrypt(block_a, AppSKey);
-
+        AesEncrypt(AppSKey, block_a);
 
         // Check for last block
         if (i != block_count) {
-            for (unsigned char j = 0; j < 16; j++) {
+            for (uint8_t j = 0; j < 16; j++) {
                 *payload ^= block_a[j];
                 payload++;
             }
@@ -352,7 +349,7 @@ void TinyLoRa::encrypt_payload(unsigned char *payload, unsigned char payload_len
                 incomplete_block_size = 16;
             }
 
-            for (unsigned char j = 0; j < incomplete_block_size; j++) {
+            for (uint8_t j = 0; j < incomplete_block_size; j++) {
                 *payload ^= block_a[j];
                 payload++;
             }
@@ -362,64 +359,27 @@ void TinyLoRa::encrypt_payload(unsigned char *payload, unsigned char payload_len
 
 /*
 *****************************************************************************************
-* Description : Function used to calculate the MIC of data
+* Description : Function used to calculate an AES MIC of given data and key
 *
-* Arguments   : *data pointer to the data to de/encrypt
-*               data_length nuber of bytes to be transmitted
-*               final_mic Array of 4 bytes
-*               frame_counter  Frame counter of upstream frames
-*               direction of msg is up
+* Arguments   : *key 16 bytes key to use for aes mic
+*               *data pointer to the data to process
+*               *initial_block pointer to an inital 16 byte block
+*               *final_mic 4 byte array for final MIC output
+*               data_length number of bytes to process
 *****************************************************************************************
 */
-void TinyLoRa::calculate_mic(unsigned char *data, unsigned char *final_mic, unsigned char data_length, unsigned int frame_counter, unsigned char direction) {
-    unsigned char block_b[16];
+void TinyLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_block, uint8_t *final_mic, uint8_t data_length) {
+    uint8_t key1[16] = {0};
+    uint8_t key2[16] = {0};
 
-    unsigned char key1[16] = {
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
-    unsigned char key2[16] = {
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
+    uint8_t old_data[16] = {0};
+    uint8_t new_data[16] = {0};
 
-    unsigned char old_data[16] = {
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
-    unsigned char new_data[16] = {
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
+    uint8_t block_count = 0;
+    uint8_t incomplete_block_size = 0;
+    uint8_t block_counter = 1;
 
-    unsigned char block_count = 0x00;
-    unsigned char incomplete_block_size = 0x00;
-    unsigned char block_counter = 0x01;
-
-    // Create block_b
-    block_b[0] = 0x49;
-    block_b[1] = 0x00;
-    block_b[2] = 0x00;
-    block_b[3] = 0x00;
-    block_b[4] = 0x00;
-
-    block_b[5] = direction;
-
-    block_b[6] = DevAddr[3];
-    block_b[7] = DevAddr[2];
-    block_b[8] = DevAddr[1];
-    block_b[9] = DevAddr[0];
-
-    block_b[10] = (frame_counter & 0x00FF);
-    block_b[11] = ((frame_counter >> 8) & 0x00FF);
-
-    block_b[12] = 0x00; // Frame counter upper bytes
-    block_b[13] = 0x00;
-
-    block_b[14] = 0x00;
-    block_b[15] = data_length;
-
-    // Calculate number of Blocks and blocksize of last block
+    // Calculate number of blocks and blocksize of last block
     block_count = data_length / 16;
     incomplete_block_size = data_length % 16;
 
@@ -427,62 +387,47 @@ void TinyLoRa::calculate_mic(unsigned char *data, unsigned char *final_mic, unsi
         block_count++;
     }
 
-    generate_keys(key1, key2);
+    GenerateKeys(key, key1, key2);
 
-    // Preform Calculation on Block B0
+    // Copy initial block to old_data if present
+    if (initial_block != NULL) {
+        for (uint8_t i = 0; i < 16; i++) {
+            old_data[i] = *initial_block;
+            initial_block++;
+        }
 
-    // Preform AES encryption
-    AES_Encrypt(block_b, NwkSKey);
-
-    // Copy block_b to old_data
-    for (unsigned char i = 0; i < 16; i++) {
-        old_data[i] = block_b[i];
+        AesEncrypt(key, old_data);
     }
 
-    // Preform full calculating until n-1 messsage blocks
+    // Calculate first block_count - 1 blocks
     while (block_counter < block_count) {
-        // Copy data into array
-        for (unsigned char i = 0; i < 16; i++) {
+        for (uint8_t i = 0; i < 16; i++) {
             new_data[i] = *data;
             data++;
         }
 
-        // Preform xor_data with old data
-        xor_data(new_data, old_data);
+        XorData(new_data, old_data);
+        AesEncrypt(key, new_data);
 
-        // Preform AES encryption
-        AES_Encrypt(new_data, NwkSKey);
-
-        // Copy new_data to old_data
-        for (unsigned char i = 0; i < 16; i++) {
+        for (uint8_t i = 0; i < 16; i++) {
             old_data[i] = new_data[i];
         }
 
-        // Raise Block counter
         block_counter++;
     }
 
-    // Perform calculation on last block
-    // Check if Datalength is a multiple of 16
+    // Pad and calculate last block
     if (incomplete_block_size == 0) {
-        // Copy last data into array
-        for (unsigned char i = 0; i < 16; i++) {
+        for (uint8_t i = 0; i < 16; i++) {
             new_data[i] = *data;
             data++;
         }
 
-        // Preform xor_data with Key 1
-        xor_data(new_data, key1);
-
-        // Preform xor_data with old data
-        xor_data(new_data, old_data);
-
-        // Preform last AES routine
-        // read NwkSKey from PROGMEM
-        AES_Encrypt(new_data, NwkSKey);
+        XorData(new_data, key1);
+        XorData(new_data, old_data);
+        AesEncrypt(key, new_data);
     } else {
-        // Copy the remaining data and fill the rest
-        for (unsigned char i = 0; i < 16; i++) {
+        for (uint8_t i = 0; i < 16; i++) {
             if (i < incomplete_block_size) {
                 new_data[i] = *data;
                 data++;
@@ -497,14 +442,9 @@ void TinyLoRa::calculate_mic(unsigned char *data, unsigned char *final_mic, unsi
             }
         }
 
-        // Preform xor_data with Key 2
-        xor_data(new_data, key2);
-
-        // Preform xor_data with Old data
-        xor_data(new_data, old_data);
-
-        // Preform last AES routine
-        AES_Encrypt(new_data, NwkSKey);
+        XorData(new_data, key2);
+        XorData(new_data, old_data);
+        AesEncrypt(key, new_data);
     }
 
     final_mic[0] = new_data[0];
@@ -512,7 +452,46 @@ void TinyLoRa::calculate_mic(unsigned char *data, unsigned char *final_mic, unsi
     final_mic[2] = new_data[2];
     final_mic[3] = new_data[3];
 
-    random_num = final_mic[3] & 0x03;
+    mRandomNumber = final_mic[3] & 0x03;
+}
+
+/*
+*****************************************************************************************
+* Description : Function used to calculate the AES MIC of an uplink packet
+*
+* Arguments   : *data pointer to the data to process
+*               final_mic 4 byte array for final MIC output
+*               data_length number of bytes to process
+*               frame_counter  Frame counter of upstream frames
+*               direction of msg is up
+*****************************************************************************************
+*/
+void TinyLoRa::CalculateUplinkMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction) {
+    uint8_t block_b[16];
+
+    block_b[0] = 0x49;
+    block_b[1] = 0x00;
+    block_b[2] = 0x00;
+    block_b[3] = 0x00;
+    block_b[4] = 0x00;
+
+    block_b[5] = direction;
+
+    block_b[6] = DevAddr[3];
+    block_b[7] = DevAddr[2];
+    block_b[8] = DevAddr[1];
+    block_b[9] = DevAddr[0];
+
+    block_b[10] = frame_counter & 0xFF;
+    block_b[11] = frame_counter >> 8;
+
+    block_b[12] = 0x00; // Frame counter upper bytes
+    block_b[13] = 0x00;
+
+    block_b[14] = 0x00;
+    block_b[15] = data_length;
+
+    CalculateMic(NwkSKey, data, block_b, final_mic, data_length);
 }
 
 /*
@@ -523,11 +502,11 @@ void TinyLoRa::calculate_mic(unsigned char *data, unsigned char *final_mic, unsi
 *               *key2 pointer ot Key2
 *****************************************************************************************
 */
-void TinyLoRa::generate_keys(unsigned char *key1, unsigned char *key2) {
-    unsigned char msb_key;
+void TinyLoRa::GenerateKeys(const uint8_t *key, uint8_t *key1, uint8_t *key2) {
+    uint8_t msb_key;
 
-    // Encrypt the zeros in key1 with the NwkSKey
-    AES_Encrypt(key1, NwkSKey);
+    // Encrypt the zeros in key1 with the NwkSkey
+    AesEncrypt(key, key1);
 
     // Create key1
     // Check if MSB is 1
@@ -538,7 +517,7 @@ void TinyLoRa::generate_keys(unsigned char *key1, unsigned char *key2) {
     }
 
     // Shift key1 one bit left
-    shift_left_data(key1);
+    ShiftLeftData(key1);
 
     // if MSB was 1
     if (msb_key == 1) {
@@ -546,7 +525,7 @@ void TinyLoRa::generate_keys(unsigned char *key1, unsigned char *key2) {
     }
 
     // Copy key1 to key2
-    for (unsigned char i = 0; i < 16; i++) {
+    for (uint8_t i = 0; i < 16; i++) {
         key2[i] = key1[i];
     }
 
@@ -558,7 +537,7 @@ void TinyLoRa::generate_keys(unsigned char *key1, unsigned char *key2) {
     }
 
     // Shift key2 one bit left
-    shift_left_data(key2);
+    ShiftLeftData(key2);
 
     // Check if MSB was 1
     if (msb_key == 1) {
@@ -566,10 +545,10 @@ void TinyLoRa::generate_keys(unsigned char *key1, unsigned char *key2) {
     }
 }
 
-void TinyLoRa::shift_left_data(unsigned char *data) {
-    unsigned char overflow = 0;
+void TinyLoRa::ShiftLeftData(uint8_t *data) {
+    uint8_t overflow = 0;
 
-    for (unsigned char i = 0; i < 16; i++) {
+    for (uint8_t i = 0; i < 16; i++) {
         // Check for overflow on next byte except for the last byte
         if (i < 15) {
             // Check if upper bit is one
@@ -587,26 +566,26 @@ void TinyLoRa::shift_left_data(unsigned char *data) {
     }
 }
 
-void TinyLoRa::xor_data(unsigned char *new_data, unsigned char *old_data) {
-    for (unsigned char i = 0; i < 16; i++) {
+void TinyLoRa::XorData(uint8_t *new_data, uint8_t *old_data) {
+    for (uint8_t i = 0; i < 16; i++) {
         new_data[i] = new_data[i] ^ old_data[i];
     }
 }
 
 /*
 *****************************************************************************************
-* Title        : AES_Encrypt
+* Title        : AesEncrypt
 * Description  :
 *****************************************************************************************
 */
-void TinyLoRa::AES_Encrypt(unsigned char *data, unsigned char *key) {
-    unsigned char round;
-    unsigned char round_key[16];
-    unsigned char state[4][4];
+void TinyLoRa::AesEncrypt(const uint8_t *key, uint8_t *data) {
+    uint8_t round;
+    uint8_t round_key[16];
+    uint8_t state[4][4];
 
     // Copy input to state arry
-    for (unsigned char column = 0; column < 4; column++) {
-        for (unsigned char row = 0; row < 4; row++) {
+    for (uint8_t column = 0; column < 4; column++) {
+        for (uint8_t row = 0; row < 4; row++) {
             state[row][column] = data[row + (column << 2)];
         }
     }
@@ -615,49 +594,49 @@ void TinyLoRa::AES_Encrypt(unsigned char *data, unsigned char *key) {
     memcpy(&round_key[0], &key[0], 16);
 
     // Add round key
-    AES_Add_Round_Key(round_key, state);
+    AesAddRoundKey(round_key, state);
 
     // Preform 9 full rounds with mixed collums
     for (round = 1; round < 10; round++) {
         // Perform Byte substitution with S table
-        for (unsigned char column = 0; column < 4; column++) {
-            for (unsigned char row = 0; row < 4; row++) {
-                state[row][column] = AES_Sub_Byte(state[row][column]);
+        for (uint8_t column = 0; column < 4; column++) {
+            for (uint8_t row = 0; row < 4; row++) {
+                state[row][column] = AesSubByte(state[row][column]);
             }
         }
 
         // Perform row Shift
-        AES_Shift_Rows(state);
+        AesShiftRows(state);
 
         // Mix Collums
-        AES_Mix_Collums(state);
+        AesMixCollums(state);
 
         // Calculate new round key
-        AES_Calculate_Round_Key(round, round_key);
+        AesCalculateRoundKey(round, round_key);
 
         // Add the round key to the round_key
-        AES_Add_Round_Key(round_key, state);
+        AesAddRoundKey(round_key, state);
     }
 
     // Perform Byte substitution with S table whitout mix collums
-    for (unsigned char column = 0; column < 4; column++) {
-        for (unsigned char row = 0; row < 4; row++) {
-            state[row][column] = AES_Sub_Byte(state[row][column]);
+    for (uint8_t column = 0; column < 4; column++) {
+        for (uint8_t row = 0; row < 4; row++) {
+            state[row][column] = AesSubByte(state[row][column]);
         }
     }
 
     // Shift rows
-    AES_Shift_Rows(state);
+    AesShiftRows(state);
 
     // Calculate new round key
-    AES_Calculate_Round_Key(round, round_key);
+    AesCalculateRoundKey(round, round_key);
 
     // Add round key
-    AES_Add_Round_Key(round_key, state);
+    AesAddRoundKey(round_key, state);
 
     // Copy the state into the data array
-    for (unsigned char column = 0; column < 4; column++) {
-        for (unsigned char row = 0; row < 4; row++) {
+    for (uint8_t column = 0; column < 4; column++) {
+        for (uint8_t row = 0; row < 4; row++) {
             data[row + (column << 2)] = state[row][column];
         }
     }
@@ -665,13 +644,13 @@ void TinyLoRa::AES_Encrypt(unsigned char *data, unsigned char *key) {
 
 /*
 *****************************************************************************************
-* Title       : AES_Add_Round_Key
+* Title       : AesAdd_Round_Key
 * Description :
 *****************************************************************************************
 */
-void TinyLoRa::AES_Add_Round_Key(unsigned char *round_key, unsigned char (*state)[4]) {
-    for (unsigned char column = 0; column < 4; column++) {
-        for (unsigned char row = 0; row < 4; row++) {
+void TinyLoRa::AesAddRoundKey(uint8_t *round_key, uint8_t (*state)[4]) {
+    for (uint8_t column = 0; column < 4; column++) {
+        for (uint8_t row = 0; row < 4; row++) {
             state[row][column] ^= round_key[row + (column << 2)];
         }
     }
@@ -679,13 +658,13 @@ void TinyLoRa::AES_Add_Round_Key(unsigned char *round_key, unsigned char (*state
 
 /*
 *****************************************************************************************
-* Title       : AES_Sub_Byte
+* Title       : AesSub_Byte
 * Description :
 *****************************************************************************************
 */
-unsigned char TinyLoRa::AES_Sub_Byte(unsigned char byte) {
-    // unsigned char S_Row, S_Collum;
-    // unsigned char S_Byte;
+uint8_t TinyLoRa::AesSubByte(uint8_t byte) {
+    // uint8_t S_Row, S_Collum;
+    // uint8_t S_Byte;
 
     // S_Row    = ((byte >> 4) & 0x0F);
     // S_Collum = ((byte >> 0) & 0x0F);
@@ -697,12 +676,12 @@ unsigned char TinyLoRa::AES_Sub_Byte(unsigned char byte) {
 
 /*
 *****************************************************************************************
-* Title       : AES_Shift_Rows
+* Title       : AesShift_Rows
 * Description :
 *****************************************************************************************
 */
-void TinyLoRa::AES_Shift_Rows(unsigned char (*state)[4]) {
-    unsigned char buffer;
+void TinyLoRa::AesShiftRows(uint8_t (*state)[4]) {
+    uint8_t buffer;
 
     // Store firt byte in buffer
     buffer      = state[1][0];
@@ -728,15 +707,15 @@ void TinyLoRa::AES_Shift_Rows(unsigned char (*state)[4]) {
 
 /*
 *****************************************************************************************
-* Title       : AES_Mix_Collums
+* Title       : AesMix_Collums
 * Description :
 *****************************************************************************************
 */
-void TinyLoRa::AES_Mix_Collums(unsigned char (*state)[4]) {
-    unsigned char a[4], b[4];
+void TinyLoRa::AesMixCollums(uint8_t (*state)[4]) {
+    uint8_t a[4], b[4];
 
-    for (unsigned char column = 0; column < 4; column++) {
-        for (unsigned char row = 0; row < 4; row++) {
+    for (uint8_t column = 0; column < 4; column++) {
+        for (uint8_t row = 0; row < 4; row++) {
             a[row] =  state[row][column];
             b[row] = (state[row][column] << 1);
 
@@ -754,17 +733,17 @@ void TinyLoRa::AES_Mix_Collums(unsigned char (*state)[4]) {
 
 /*
 *****************************************************************************************
-* Title       : AES_Calculate_Round_Key
+* Title       : AesCalculate_Round_Key
 * Description :
 *****************************************************************************************
 */
-void TinyLoRa::AES_Calculate_Round_Key(unsigned char round, unsigned char *round_key) {
-    unsigned char tmp[4];
+void TinyLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
+    uint8_t tmp[4];
 
     // Calculate rcon
-    unsigned char rcon = 0x01;
+    uint8_t rcon = 0x01;
     while (round != 1) {
-        unsigned char b = rcon & 0x80;
+        uint8_t b = rcon & 0x80;
         rcon = rcon << 1;
 
         if (b == 0x80) {
@@ -775,17 +754,17 @@ void TinyLoRa::AES_Calculate_Round_Key(unsigned char round, unsigned char *round
 
     // Calculate first tmp
     // Copy laste byte from previous key and subsitute the byte, but shift the array contents around by 1.
-    tmp[0] = AES_Sub_Byte(round_key[12 + 1]);
-    tmp[1] = AES_Sub_Byte(round_key[12 + 2]);
-    tmp[2] = AES_Sub_Byte(round_key[12 + 3]);
-    tmp[3] = AES_Sub_Byte(round_key[12 + 0]);
+    tmp[0] = AesSubByte(round_key[12 + 1]);
+    tmp[1] = AesSubByte(round_key[12 + 2]);
+    tmp[2] = AesSubByte(round_key[12 + 3]);
+    tmp[3] = AesSubByte(round_key[12 + 0]);
 
     // XOR with rcon
     tmp[0] ^= rcon;
 
     // Calculate new key
-    for (unsigned char i = 0; i < 4; i++) {
-        for (unsigned char j = 0; j < 4; j++) {
+    for (uint8_t i = 0; i < 4; i++) {
+        for (uint8_t j = 0; j < 4; j++) {
             round_key[j + (i << 2)] ^= tmp[j];
             tmp[j] = round_key[j + (i << 2)];
         }
