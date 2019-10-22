@@ -60,4 +60,19 @@ inline void debug_binrep(const char *prefix, uint8_t value) {
     TxByte('\n');
 }
 
+inline void debug_bytes(const char *prefix, uint8_t *bytes, uint8_t length) {
+    char buffer[4];
+
+    debug(prefix);
+
+    for (uint8_t i = 0; i < length; i++) {
+        buffer[0] = buffer[1] = buffer[3] = 0;
+        buffer[2] = ' ';
+
+        utoa(bytes[i], buffer, 16);
+        debug(buffer);
+    }
+    TxByte('\n');
+}
+
 #endif

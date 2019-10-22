@@ -165,12 +165,26 @@ int main() {
     SPI.Init();
 
     lora.Init();
+#ifdef DEBUG
+    debug("LoRa init done.\n");
+#endif
+
+#if OTAA
+    while (!lora.HasJoined()) {
+#ifdef DEBUG
+        debug("Joining.\n");
+#endif
+        lora.Join();
+        _delay_ms(1000);
+    }
+#endif // OTAA
+
+#ifdef DEBUG
+    debug("Joined network.\n");
+#endif
 
 #if !ENABLE_SI7021
     SPI.End();
-#endif
-#ifdef DEBUG
-    debug("LoRa init done.\n");
 #endif
 
     for (;;) {

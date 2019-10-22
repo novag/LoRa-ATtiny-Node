@@ -1,6 +1,6 @@
 /*
- * Original work Copyright (c) 2015, 2016 Ideetron B.V.
- * Modified work Copyright (c) 2018 Hendrik Hagendorn
+ * Copyright (c) 2018, 2019 Hendrik Hagendorn
+ * Copyright (c) 2015, 2016 Ideetron B.V.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -29,9 +29,16 @@
 #include "tinylora.h"
 #include "tinyspi.h"
 
+#if OTAA
+extern const uint8_t DevEUI[8];
+extern const uint8_t JoinEUI[8];
+extern const uint8_t NwkKey[16];
+extern const uint8_t AppKey[16];
+#else
 extern const uint8_t NwkSKey[16];
 extern const uint8_t AppSKey[16];
 extern const uint8_t DevAddr[4];
+#endif
 
 extern TinySPI SPI;
 
@@ -92,6 +99,24 @@ const uint8_t PROGMEM TinyLoRa::S_Table[16][16] = {
     {0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16}
 };
 
+static volatile uint8_t ticks = 0;
+ISR(TIMER1_COMPA_vect) {
+    ticks++;
+}
+
+inline void TinyLoRa::InitTimer1() {
+    cli();
+
+    ticks = 0;
+
+    TCCR1 |= 1 << CTC1; // CTC
+    TCCR1 |= 1 << CS13 | 1 << CS12 | 1 << CS11 | 1 << CS10; // 16384 prescaler
+    OCR1C = 122;
+    TIMSK |= 1 << OCIE1A; // CTC interrupt
+
+    sei();
+}
+
 void TinyLoRa::Init() {
     // Sleep
     RfmWrite(RFM_REG_OP_MODE, 0x00);
@@ -123,13 +148,107 @@ void TinyLoRa::Init() {
 
 /*
 *****************************************************************************************
-* Description : Function for sending a packet using the RFM
+* Description : Function for receiving a packet using the RFM
+*
+* Arguments   : *packet Pointer to Rx packet array
+*               packet_max_length Maximum number of bytes to read from Rx packet
+*               channel The FrequencyTable channel index to listen on (-1 Don't change)
+*               sf The SFTable index to listen on (-1 Don't change)
+*               delay Listen until n seconds elapsed, starting from last transmision
+*****************************************************************************************
+*/
+int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint8_t delay) {
+    uint8_t irq_flags, packet_length, read_length;
+
+    // Invert IQ
+    RfmWrite(RFM_REG_INVERT_IQ, 0x66);
+    RfmWrite(RFM_REG_INVERT_IQ_2, 0x19);
+
+    // Set SPI pointer to start of Rx part in FiFo
+    RfmWrite(RFM_REG_FIFO_ADDR_PTR, 0x00);
+
+    // Channel
+    if (channel > -1) {
+        RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(FrequencyTable[channel][0])));
+        RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[channel][1])));
+        RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[channel][2])));
+    }
+
+    // Spreading factor
+    if (sf > -1) {
+        RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(SFTable[sf][0])));
+        RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(SFTable[sf][1])));
+        RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(SFTable[sf][2])));
+    }
+
+    // Clear interrupts
+    RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
+
+    // Switch RFM to Rx
+    RfmWrite(RFM_REG_OP_MODE, 0x85);
+
+    // Wait for Tx mode
+    while (RfmRead(RFM_REG_OP_MODE) != 0x85);
+
+    // Wait for RxDone or RxTimeout until delay seconds elapsed
+    while (ticks < delay * 4 + 1 && (irq_flags = RfmRead(RFM_REG_IRQ_FLAGS) & 0xC0) == 0);
+
+    // Switch RFM to standby
+    RfmWrite(RFM_REG_OP_MODE, 0x81);
+
+#ifdef DEBUG
+    debug("Receive window ended.\n");
+#endif
+
+    packet_length = RfmRead(RFM_REG_RX_NB_BYTES);
+    RfmWrite(RFM_REG_FIFO_ADDR_PTR, RfmRead(RFM_REG_FIFO_RX_CURRENT_ADDR));
+
+    if (packet_max_length < packet_length) {
+        read_length = packet_max_length;
+    } else {
+        read_length = packet_length;
+    }
+    for (uint8_t i = 0; i < read_length; i++) {
+        packet[i] = RfmRead(RFM_REG_FIFO);
+    }
+
+    // Clear interrupts
+    RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
+
+    // Switch RFM to sleep
+    RfmWrite(RFM_REG_OP_MODE, 0x00);
+
+    switch (irq_flags & 0xC0) {
+        case RFM_STATUS_RX_TIMEOUT:
+#ifdef DEBUG
+            debug("RxTimeout\n");
+#endif
+            return RFM_ERROR_RX_TIMEOUT;
+        case RFM_STATUS_RX_DONE_CRC_ERROR:
+#ifdef DEBUG
+            debug("RxDone/CrcError\n");
+#endif
+            return RFM_ERROR_CRC;
+        case RFM_STATUS_RX_DONE:
+#ifdef DEBUG
+            debug("RxDone\n");
+#endif
+            return packet_length;
+    }
+
+    return RFM_ERROR_UNKNOWN;
+}
+
+/*
+*****************************************************************************************
+* Description : Function for sending a packet with the RFM
 *
 * Arguments   : *packet Pointer to array with data to be send
 *               packet_length Length of the packet to send
+*               start_counter Wheter or not to start a timer for Rx delay
 *****************************************************************************************
 */
-void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length) {
+void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_counter) {
     // Switch RFM to standby
     RfmWrite(RFM_REG_OP_MODE, 0x81);
 
@@ -166,7 +285,11 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length) {
     RfmWrite(RFM_REG_OP_MODE, 0x83);
 
     // Wait for TxDone in the RegIrqFlags register
-    while ((RfmRead(RFM_REG_IRQ_FLAGS) & 0x08) != 0x08);
+    while ((RfmRead(RFM_REG_IRQ_FLAGS) & RFM_STATUS_TX_DONE) != RFM_STATUS_TX_DONE);
+
+    if (start_counter) {
+        InitTimer1();
+    }
 
 #ifdef DEBUG
     debug("D: RSP: TxDone\n");
@@ -175,8 +298,10 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length) {
     // Clear interrupt
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
-    // Switch RFM to sleep
-    RfmWrite(RFM_REG_OP_MODE, 0x00);
+    if (!start_counter) {
+        // Switch RFM to sleep
+        RfmWrite(RFM_REG_OP_MODE, 0x00);
+    }
 }
 
 /*
@@ -228,6 +353,366 @@ uint8_t TinyLoRa::RfmRead(uint8_t address) {
     return data;
 }
 
+#if OTAA
+/*
+*****************************************************************************************
+* Description : Function returns if the device joined a LoRaWAN network
+*****************************************************************************************
+*/
+bool TinyLoRa::HasJoined() {
+    return mHasJoined;
+}
+
+/*
+*****************************************************************************************
+* Description : Function contstructs a LoRaWAN Join-request packet and sends it
+*****************************************************************************************
+*/
+int8_t TinyLoRa::Join() {
+    uint8_t packet[1 + LORAWAN_JOIN_REQUEST_SIZE + 4];
+    uint8_t packet_length;
+
+    uint16_t dev_nonce;
+
+    uint8_t mic[4];
+
+    uint8_t mac_header = LORAWAN_MTYPE_JOIN_REQUEST;
+
+    packet[0] = mac_header;
+
+    packet[1] = JoinEUI[7];
+    packet[2] = JoinEUI[6];
+    packet[3] = JoinEUI[5];
+    packet[4] = JoinEUI[4];
+    packet[5] = JoinEUI[3];
+    packet[6] = JoinEUI[2];
+    packet[7] = JoinEUI[1];
+    packet[8] = JoinEUI[0];
+
+    packet[9] = DevEUI[7];
+    packet[10] = DevEUI[6];
+    packet[11] = DevEUI[5];
+    packet[12] = DevEUI[4];
+    packet[13] = DevEUI[3];
+    packet[14] = DevEUI[2];
+    packet[15] = DevEUI[1];
+    packet[16] = DevEUI[0];
+
+    dev_nonce = GetDevNonce();
+    SetDevNonce(++dev_nonce);
+
+    packet[17] = dev_nonce & 0xFF;
+    packet[18] = dev_nonce++ >> 8;
+
+    packet_length = 1 + LORAWAN_JOIN_REQUEST_SIZE;
+
+#if LORAWAN1_1
+    CalculateMic(NwkKey, packet, NULL, mic, packet_length);
+#else
+    CalculateMic(AppKey, packet, NULL, mic, packet_length);
+#endif // LORAWAN1_1
+    for (uint8_t i = 0; i < 4; i++) {
+        packet[i + packet_length] = mic[i];
+    }
+    packet_length += 4;
+
+    RfmSendPacket(packet, packet_length, true);
+
+    // Wait LORAWAN_JOIN_ACCEPT_DELAY1 seconds
+    while (ticks < LORAWAN_JOIN_ACCEPT_DELAY1 * 4 - 1);
+
+    if (!ProcessJoinAccept()) {
+        return 0;
+    }
+
+    // Wait LORAWAN_JOIN_ACCEPT_DELAY2 seconds
+    while (ticks < LORAWAN_JOIN_ACCEPT_DELAY2 * 4 - 1);
+
+    return ProcessJoinAccept();
+}
+
+/*
+*****************************************************************************************
+* Description : Function processes a LoRaWAN 1.0 Join-accept message
+*****************************************************************************************
+*/
+void TinyLoRa::ProcessJoinAccept1_0(uint8_t *packet, uint8_t *mic, uint8_t packet_length) {
+    uint8_t buffer[29];
+    uint16_t dev_nonce = GetDevNonce();
+
+    // Derive AppSKey, FNwkSIntKey, SNwkSIntKey, NwkSEncKey
+    for (uint8_t i = 1; i <= 2; i++) {
+        memset(buffer, 0, 16);
+
+        buffer[0] = i;
+
+        // JoinNonce
+        buffer[1] = packet[3];
+        buffer[2] = packet[2];
+        buffer[3] = packet[1];
+
+        // NetID
+        buffer[4] = packet[6];
+        buffer[5] = packet[5];
+        buffer[6] = packet[4];
+
+        // DevNonce
+        buffer[7] = dev_nonce >> 8;
+        buffer[8] = dev_nonce & 0xFF;
+
+        AesEncrypt(AppKey, buffer);
+
+        if (i == 1) {
+            SetFNwkSIntKey(buffer);
+            SetSNwkSIntKey(buffer);
+            SetNwkSEncKey(buffer);
+        } else {
+            SetAppSKey(buffer);
+        }
+    }
+
+    // MHDR | JoinNonce | NetID | DevAddr | DLSettings | RxDelay | CFList
+    memset(buffer, 0, 29);
+
+    // MHDR
+    buffer[0] = packet[0];
+
+    // JoinNonce
+    buffer[1] = packet[3];
+    buffer[2] = packet[2];
+    buffer[3] = packet[1];
+
+    // NetID
+    buffer[4] = packet[6];
+    buffer[5] = packet[5];
+    buffer[6] = packet[4];
+
+    // DevAddr
+    buffer[7] = packet[10];
+    buffer[8] = packet[9];
+    buffer[9] = packet[8];
+    buffer[10] = packet[7];
+
+    // DLSettings
+    buffer[11] = packet[11];
+
+    // RxDelay
+    buffer[12] = packet[12];
+
+    if (packet_length > 17) {
+        // CFList
+        for (uint8_t i = 0; i < 16; i++) {
+            buffer[13 + i] = packet[28 - i];
+        }
+
+        CalculateMic(AppKey, buffer, NULL, mic, 29);
+    } else {
+        CalculateMic(AppKey, buffer, NULL, mic, 13);
+    }
+}
+
+#if LORAWAN1_1
+/*
+*****************************************************************************************
+* Description : Function processes a LoRaWAN 1.1 Join-accept message
+*****************************************************************************************
+*/
+void TinyLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t *mic, uint8_t packet_length) {
+    uint8_t buffer[40];
+    uint16_t dev_nonce = GetDevNonce();
+
+    // Derive AppSKey, FNwkSIntKey, SNwkSIntKey and NwkSEncKey
+    for (uint8_t i = 1; i <= 4; i++) {
+        memset(buffer, 0, 16);
+
+        buffer[0] = i;
+
+        // JoinNonce
+        buffer[1] = packet[3];
+        buffer[2] = packet[2];
+        buffer[3] = packet[1];
+
+        // JoinEUI
+        buffer[4] = JoinEUI[0];
+        buffer[5] = JoinEUI[1];
+        buffer[6] = JoinEUI[2];
+        buffer[7] = JoinEUI[3];
+        buffer[8] = JoinEUI[4];
+        buffer[9] = JoinEUI[5];
+        buffer[10] = JoinEUI[6];
+        buffer[11] = JoinEUI[7];
+
+        // DevNonce
+        buffer[12] = dev_nonce >> 8;
+        buffer[13] = dev_nonce & 0xFF;
+
+        if (i == 2) {
+            AesEncrypt(AppKey, buffer);
+        } else {
+            AesEncrypt(NwkKey, buffer);
+        }
+
+        switch (i) {
+            case 1:
+                SetFNwkSIntKey(buffer);
+                break;
+            case 2:
+                SetAppSKey(buffer);
+                break;
+            case 3:
+                SetSNwkSIntKey(buffer);
+                break;
+            case 4:
+                SetNwkSEncKey(buffer);
+                break;
+        }
+    }
+
+    // JoinReqType | JoinEUI | DevNonce MHDR | JoinNonce | NetID | DevAddr | DLSettings | RxDelay | CFList
+    memset(buffer, 0, 40);
+
+    // JoinReqType
+    buffer[0] = 0xFF; // TODO
+
+    // JoinEUI
+    buffer[1] = JoinEUI[0];
+    buffer[2] = JoinEUI[1];
+    buffer[3] = JoinEUI[2];
+    buffer[4] = JoinEUI[3];
+    buffer[5] = JoinEUI[4];
+    buffer[6] = JoinEUI[5];
+    buffer[7] = JoinEUI[6];
+    buffer[8] = JoinEUI[7];
+
+    // DevNonce
+    buffer[9] = dev_nonce >> 8;
+    buffer[10] = dev_nonce & 0xFF;
+
+    // MHDR
+    buffer[11] = packet[0];
+
+    // JoinNonce
+    buffer[12] = packet[3];
+    buffer[13] = packet[2];
+    buffer[14] = packet[1];
+
+    // NetID
+    buffer[15] = packet[6];
+    buffer[16] = packet[5];
+    buffer[17] = packet[4];
+
+    // DevAddr
+    buffer[18] = packet[10];
+    buffer[19] = packet[9];
+    buffer[20] = packet[8];
+    buffer[21] = packet[7];
+
+    // DLSettings
+    buffer[22] = packet[11];
+
+    // RxDelay
+    buffer[23] = packet[12];
+
+    if (packet_length > 17) {
+        // CFList
+        for (uint8_t i = 0; i < 16; i++) {
+            buffer[24 + i] = packet[28 - i];
+        }
+
+        //CalculateMic(JSIntKey, buffer, NULL, mic, 40);
+    } else {
+        //CalculateMic(JSIntKey, buffer, NULL, mic, 24);
+    }
+}
+#endif // LORAWAN1_1
+
+/*
+*****************************************************************************************
+* Description : Function listens and processes a LoRaWAN Join-accept message
+*****************************************************************************************
+*/
+int8_t TinyLoRa::ProcessJoinAccept() {
+    uint8_t packet[1 + LORAWAN_JOIN_ACCEPT_MAX_SIZE + 4];
+    int8_t packet_length;
+
+    uint8_t mic[4], dev_addr[4];
+
+    packet_length = RfmReceivePacket(packet, sizeof(packet), -1, -1,
+                                     LORAWAN_JOIN_ACCEPT_DELAY1);
+#ifdef DEBUG
+    debug_int("D: PJA: packet_length = ", packet_length);
+#endif
+    if (packet_length > 1 + LORAWAN_JOIN_ACCEPT_MAX_SIZE + 4) {
+#ifdef DEBUG
+        debug("E: PJA: Invalid packet length\n");
+#endif
+        return LORAWAN_ERROR_SIZE_EXCEEDED;
+    }
+
+    if (packet[0] != LORAWAN_MTYPE_JOIN_ACCEPT) {
+#ifdef DEBUG
+        if (packet_length > 0) {
+            debug_bytes("E: PJA: Unexpected MTYPE: ", packet, packet_length);
+        } else {
+            debug("E: PJA: Unexpected MTYPE\n");
+        }
+#endif
+        return LORAWAN_ERROR_UNEXPECTED_MTYPE;
+    }
+
+#if LORAWAN1_1
+    AesEncrypt(NwkKey, packet + 1);
+#else
+    AesEncrypt(AppKey, packet + 1);
+#endif // LORAWAN1_1
+    if (packet_length > 17) {
+#if LORAWAN1_1
+        AesEncrypt(NwkKey, packet + 17);
+#else
+        AesEncrypt(AppKey, packet + 17);
+#endif // LORAWAN1_1
+    }
+
+    // Check JoinNonce validity
+    if (GetJoinNonce() >= packet[1] | packet[2] << 8 | (uint32_t) packet[3] << 16) {
+#ifdef DEBUG
+        debug("E: PJA: Invalid JoinNonce\n");
+#endif
+        return LORAWAN_ERROR_INVALID_JOIN_NONCE;
+    }
+
+    // Check OptNeg flag
+    if (packet[11] & 0x80) {
+        // LoRaWAN1.1+
+
+#if LORAWAN1_1
+        ProcessJoinAccept1_1(packet, mic, packet_length);
+#endif // LORAWAN1_1
+    } else {
+        // LoRaWAN1.0
+
+        ProcessJoinAccept1_0(packet, mic, packet_length);
+    }
+
+    if (mic[0] == packet[29] && mic[1] == packet[30]
+            && mic[2] == packet[31] && mic[3] == packet[32]) {
+        dev_addr[0] = packet[10];
+        dev_addr[1] = packet[9];
+        dev_addr[2] = packet[8];
+        dev_addr[3] = packet[7];
+        SetDevAddr(dev_addr);
+
+        mHasJoined = true;
+
+        return 0;
+    }
+
+    mHasJoined = false;
+
+    return LORAWAN_ERROR_INVALID_MIC;
+}
+#endif // OTAA
+
 /*
 *****************************************************************************************
 * Description : Function contstructs a LoRaWAN packet and sends it
@@ -250,16 +735,28 @@ void TinyLoRa::Transmit(uint8_t *payload, uint8_t payload_length) {
     uint8_t frame_control = 0;
     uint8_t frame_port = 1;
 
+#if OTAA
+    uint8_t dev_addr[4];
+    GetDevAddr(dev_addr);
+#endif // OTAA
+
     // Encrypt the data
     EncryptPayload(payload, payload_length, mTxFrameCounter, direction);
 
     // Build the packet
     packet[0] = mac_header;
 
+#if OTAA
+    packet[1] = dev_addr[3];
+    packet[2] = dev_addr[2];
+    packet[3] = dev_addr[1];
+    packet[4] = dev_addr[0];
+#else
     packet[1] = DevAddr[3];
     packet[2] = DevAddr[2];
     packet[3] = DevAddr[1];
     packet[4] = DevAddr[0];
+#endif // OTAA
 
     packet[5] = frame_control;
 
@@ -270,7 +767,7 @@ void TinyLoRa::Transmit(uint8_t *payload, uint8_t payload_length) {
 
     packet_length = 9;
 
-    // Load Data
+    // Copy payload
     for (uint8_t i = 0; i < payload_length; i++) {
         packet[packet_length + i] = payload[i];
     }
@@ -283,7 +780,7 @@ void TinyLoRa::Transmit(uint8_t *payload, uint8_t payload_length) {
     }
     packet_length += 4;
 
-    RfmSendPacket(packet, packet_length);
+    RfmSendPacket(packet, packet_length, false);
 
     mTxFrameCounter++;
 }
@@ -304,6 +801,12 @@ void TinyLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
 
     uint8_t block_a[16];
 
+#if OTAA
+    uint8_t dev_addr[4], app_s_key[16];
+    GetDevAddr(dev_addr);
+    GetAppSKey(app_s_key);
+#endif // OTAA
+
     // Calculate number of blocks
     block_count = payload_length / 16;
     incomplete_block_size = payload_length % 16;
@@ -320,10 +823,17 @@ void TinyLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
 
         block_a[5] = direction;
 
+#if OTAA
+        block_a[6] = dev_addr[3];
+        block_a[7] = dev_addr[2];
+        block_a[8] = dev_addr[1];
+        block_a[9] = dev_addr[0];
+#else
         block_a[6] = DevAddr[3];
         block_a[7] = DevAddr[2];
         block_a[8] = DevAddr[1];
         block_a[9] = DevAddr[0];
+#endif // OTAA
 
         block_a[10] = frame_counter & 0xFF;
         block_a[11] = frame_counter >> 8;
@@ -336,7 +846,11 @@ void TinyLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
         block_a[15] = i;
 
         // Calculate S
+#if OTAA
+        AesEncrypt(app_s_key, block_a);
+#else
         AesEncrypt(AppSKey, block_a);
+#endif // OTAA
 
         // Check for last block
         if (i != block_count) {
@@ -468,6 +982,12 @@ void TinyLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_
 */
 void TinyLoRa::CalculateUplinkMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction) {
     uint8_t block_b[16];
+#if OTAA
+    uint8_t dev_addr[4], nwk_s_key[16];
+
+    GetDevAddr(dev_addr);
+    GetNwkSEncKey(nwk_s_key);
+#endif // OTAA
 
     block_b[0] = 0x49;
     block_b[1] = 0x00;
@@ -477,10 +997,17 @@ void TinyLoRa::CalculateUplinkMic(uint8_t *data, uint8_t *final_mic, uint8_t dat
 
     block_b[5] = direction;
 
+#if OTAA
+    block_b[6] = dev_addr[3];
+    block_b[7] = dev_addr[2];
+    block_b[8] = dev_addr[1];
+    block_b[9] = dev_addr[0];
+#else
     block_b[6] = DevAddr[3];
     block_b[7] = DevAddr[2];
     block_b[8] = DevAddr[1];
     block_b[9] = DevAddr[0];
+#endif // OTAA
 
     block_b[10] = frame_counter & 0xFF;
     block_b[11] = frame_counter >> 8;
@@ -491,7 +1018,11 @@ void TinyLoRa::CalculateUplinkMic(uint8_t *data, uint8_t *final_mic, uint8_t dat
     block_b[14] = 0x00;
     block_b[15] = data_length;
 
+#if OTAA
+    CalculateMic(nwk_s_key, data, block_b, final_mic, data_length);
+#else
     CalculateMic(NwkSKey, data, block_b, final_mic, data_length);
+#endif // OTAA
 }
 
 /*
@@ -770,3 +1301,82 @@ void TinyLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
         }
     }
 }
+
+/*
+ * EEPROM variables
+ */
+#if OTAA
+uint8_t eeprom_lw_dev_addr[4] EEMEM;
+uint16_t eeprom_lw_dev_nonce EEMEM = 1;
+uint8_t eeprom_lw_join_nonce[3] EEMEM = {0};
+uint8_t eeprom_lw_app_s_key[16] EEMEM;
+uint8_t eeprom_lw_f_nwk_s_int_key[16] EEMEM;
+uint8_t eeprom_lw_s_nwk_s_int_key[16] EEMEM;
+uint8_t eeprom_lw_nwk_s_enc_key[16] EEMEM;
+
+// DevAddr
+void TinyLoRa::GetDevAddr(uint8_t *dev_addr) {
+    eeprom_read_block(dev_addr, eeprom_lw_dev_addr, 4);
+}
+
+void TinyLoRa::SetDevAddr(uint8_t *dev_addr) {
+    eeprom_write_block(dev_addr, eeprom_lw_dev_addr, 4);
+}
+
+// DevNonce
+uint16_t TinyLoRa::GetDevNonce() {
+    return eeprom_read_word(&eeprom_lw_dev_nonce);
+}
+
+void TinyLoRa::SetDevNonce(uint16_t dev_nonce) {
+    eeprom_write_word(&eeprom_lw_dev_nonce, dev_nonce);
+}
+
+// JoinNonce
+uint32_t TinyLoRa::GetJoinNonce() {
+    uint8_t buffer[3];
+    eeprom_read_block(buffer, eeprom_lw_join_nonce, 3);
+
+    return buffer[0] | buffer[1] << 8 | (uint32_t) buffer[2] << 16;
+}
+
+void TinyLoRa::SetJoinNonce(uint8_t *data) {
+    eeprom_write_block(data, eeprom_lw_join_nonce, 3);
+}
+
+// AppSKey
+void TinyLoRa::GetAppSKey(uint8_t *key) {
+    eeprom_read_block(key, eeprom_lw_app_s_key, 16);
+}
+
+void TinyLoRa::SetAppSKey(uint8_t *key) {
+    eeprom_write_block(key, eeprom_lw_app_s_key, 16);
+}
+
+// FNwkSIntKey
+void TinyLoRa::GetFNwkSIntKey(uint8_t *key) {
+    eeprom_read_block(key, eeprom_lw_f_nwk_s_int_key, 16);
+}
+
+void TinyLoRa::SetFNwkSIntKey(uint8_t *key) {
+    eeprom_write_block(key, eeprom_lw_f_nwk_s_int_key, 16);
+}
+
+// SNwkSIntKey
+void TinyLoRa::GetSNwkSIntKey(uint8_t *key) {
+    eeprom_read_block(key, eeprom_lw_s_nwk_s_int_key, 16);
+}
+
+void TinyLoRa::SetSNwkSIntKey(uint8_t *key) {
+    eeprom_write_block(key, eeprom_lw_s_nwk_s_int_key, 16);
+}
+
+// NwkSEncKey
+void TinyLoRa::GetNwkSEncKey(uint8_t *key) {
+    eeprom_read_block(key, eeprom_lw_nwk_s_enc_key, 16);
+}
+
+void TinyLoRa::SetNwkSEncKey(uint8_t *key) {
+    eeprom_write_block(key, eeprom_lw_nwk_s_enc_key, 16);
+}
+#endif // OTAA
