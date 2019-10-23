@@ -85,7 +85,7 @@ class TinyLoRa {
     void Init(void);
     bool HasJoined(void);
     int8_t Join();
-    void Transmit(uint8_t *payload, uint8_t payload_length);
+    void Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length);
 
   private:
     bool mHasJoined = false;

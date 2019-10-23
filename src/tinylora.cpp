@@ -717,11 +717,12 @@ int8_t TinyLoRa::ProcessJoinAccept() {
 *****************************************************************************************
 * Description : Function contstructs a LoRaWAN packet and sends it
 *
-* Arguments   : *payload pointer to the array of data that will be transmitted
+* Arguments   : port FPort of the frame
+*               *payload pointer to the array of data that will be transmitted
 *               payload_length nuber of bytes to be transmitted
 *****************************************************************************************
 */
-void TinyLoRa::Transmit(uint8_t *payload, uint8_t payload_length) {
+void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length) {
     // Direction up
     uint8_t direction = 0x00;
 
@@ -733,7 +734,6 @@ void TinyLoRa::Transmit(uint8_t *payload, uint8_t payload_length) {
     uint8_t mac_header = LORAWAN_MTYPE_UNCONFIRMED_DATA_UP;
 
     uint8_t frame_control = 0;
-    uint8_t frame_port = 1;
 
 #if OTAA
     uint8_t dev_addr[4];
@@ -763,7 +763,7 @@ void TinyLoRa::Transmit(uint8_t *payload, uint8_t payload_length) {
     packet[6] = mTxFrameCounter & 0xFF;
     packet[7] = mTxFrameCounter >> 8;
 
-    packet[8] = frame_port;
+    packet[8] = fport;
 
     packet_length = 9;
 

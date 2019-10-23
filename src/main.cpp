@@ -26,6 +26,7 @@
 #include "config.h"
 #include "error.h"
 #include "pins.h"
+#include "ports.h"
 #include "tinyi2cmaster.h"
 #include "tinylora.h"
 #include "tinyspi.h"
@@ -35,6 +36,8 @@
 #include "dht22.h"
 #elif ENABLE_SI7021
 #include "si7021.h"
+#elif ENABLE_DS18B20
+#include "ds18b20.h"
 #else
 #warning "No sensor enabled. Using fake temp."
 #endif
@@ -139,14 +142,16 @@ int main() {
      * 4[7-0]: Humidity H
      * 5[7-0]: Humidity L
      */
-    uint8_t payload[6], payload_length = sizeof(payload);
-    uint8_t status;
+    uint8_t payload[6], payload_length;
+    uint8_t fport, status;
     uint16_t voltage, temperature, humidity;
     TinyLoRa lora;
 #if ENABLE_DHT22
     DHT22 dht22;
 #elif ENABLE_SI7021
     Si7021 si7021(0x40);
+#elif ENABLE_DS18B20
+    DS18B20 ds18b20;
 #endif
 
 #ifdef DEBUG
@@ -183,7 +188,7 @@ int main() {
     debug("Joined network.\n");
 #endif
 
-#if !ENABLE_SI7021
+#if ENABLE_I2C_MASTER
     SPI.End();
 #endif
 
@@ -192,6 +197,7 @@ int main() {
 #ifdef DEBUG
             debug("Sending...\n");
 #endif
+            payload_length = sizeof(payload);
 
             CLEARBIT(status, SENSOR_ERROR);
             CLEARBIT(status, CHECKSUM_ERROR);
@@ -210,6 +216,8 @@ int main() {
                     humidity = temperature = 0xFFFF;
                     break;
             }
+
+            fport = FPORT_DHT22;
 #elif ENABLE_SI7021
             TinyI2C.Init();
             si7021.Init();
@@ -237,8 +245,22 @@ int main() {
             }
 
             TinyI2C.End();
+
+            fport = FPORT_SI7021;
+#elif ENABLE_DS18B20
+            temperature = ds18b20.MeasureTemperature();
+            if (temperature == DS18B20_CHECKSUM_ERROR) {
+                SETBIT(status, CHECKSUM_ERROR);
+            }
+
+            humidity = 0xFFFF;
+            payload_length -= 2;
+
+            fport = FPORT_DS18B20;
 #else
             humidity = temperature = 0xFFFF;
+
+            fport = FPORT_GENERAL;
 #endif
 
             voltage = read_voltage();
@@ -250,12 +272,12 @@ int main() {
             payload[4] = (humidity >> 8) & 0xFF;
             payload[5] = humidity & 0xFF;
 
-#if ENABLE_SI7021
+#if ENABLE_I2C_MASTER
             SPI.SetDataMode(SPI_MODE0);
             SPI.Init();
 #endif
-            lora.Transmit(payload, payload_length);
-#if ENABLE_SI7021
+            lora.Transmit(fport, payload, payload_length);
+#if ENABLE_I2C_MASTER
             SPI.End();
 #endif
 

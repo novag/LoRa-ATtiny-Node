@@ -1,6 +1,8 @@
 #ifndef PINS_H
 #define PINS_H
 
+#include <avr/io.h>
+
 /*** ATtiny85 ***/
 #define DDR_I2C_SCL DDRB
 #define PRT_I2C_SCL PORTB
@@ -16,5 +18,10 @@
 #define PRT_DHT22   PORTB
 #define PIN_DHT22   PINB
 #define PB_DHT22    PB4
+
+#define DDR_DS18B20 DDRB
+#define PRT_DS18B20 PORTB
+#define PIN_DS18B20 PINB
+#define PB_DS18B20  PB4
 
 #endif

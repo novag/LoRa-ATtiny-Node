@@ -8,7 +8,7 @@
  * http://creativecommons.org/licenses/by/4.0/
  */
 #include "config.h"
-#if ENABLE_SI7021
+#if ENABLE_I2C_MASTER
 
 #include "tinyi2cmaster.h"
 
@@ -177,4 +177,4 @@ void TinyI2CMaster::End() {
 
 TinyI2CMaster TinyI2C = TinyI2CMaster();        // Instantiate a TinyI2C object
 
-#endif // ENABLE_SI7021
+#endif // ENABLE_I2C_MASTER
