@@ -130,6 +130,7 @@ class TinyLoRa {
 
   private:
     uint8_t mDataRate = SF10BW125;
+    uint8_t mRx2DataRate;
     bool mHasJoined = false;
     bool mAdrEnabled = false;
     uint16_t mTxFrameCounter = 0;
@@ -169,6 +170,8 @@ class TinyLoRa {
     void SetTxFrameCounter(uint16_t count);
     uint16_t GetRxFrameCounter();
     void SetRxFrameCounter(uint16_t count);
+    uint8_t GetRx2DataRate();
+    void SetRx2DataRate(uint8_t value);
 
     void GetDevAddr(uint8_t *dev_addr);
     void SetDevAddr(uint8_t *dev_addr);

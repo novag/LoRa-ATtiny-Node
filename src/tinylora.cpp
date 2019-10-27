@@ -147,6 +147,7 @@ void TinyLoRa::Init() {
 
     mTxFrameCounter = GetTxFrameCounter();
     mRxFrameCounter = GetRxFrameCounter();
+    mRx2DataRate = GetRx2DataRate();
 }
 
 /*
@@ -580,7 +581,7 @@ void TinyLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t *mic, uint8_t packe
         }
     }
 
-    // JoinReqType | JoinEUI | DevNonce MHDR | JoinNonce | NetID | DevAddr | DLSettings | RxDelay | CFList
+    // JoinReqType | JoinEUI | DevNonce | MHDR | JoinNonce | NetID | DevAddr | DLSettings | RxDelay | CFList
     memset(buffer, 0, 40);
 
     // JoinReqType
@@ -655,7 +656,7 @@ int8_t TinyLoRa::ProcessJoinAccept(uint8_t window, uint8_t delay) {
     if (window == 1) {
         packet_length = RfmReceivePacket(packet, sizeof(packet), -1, -1, delay, false);
     } else {
-        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, SF12BW125, delay, true);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, delay, true);
     }
 #ifdef DEBUG
     debug_int("D: PJA: packet_length = ", packet_length);
@@ -720,6 +721,9 @@ int8_t TinyLoRa::ProcessJoinAccept(uint8_t window, uint8_t delay) {
         dev_addr[3] = packet[7];
         SetDevAddr(dev_addr);
 
+        mRx2DataRate = packet[11] & 0xF;
+        SetRx2DataRate(mRx2DataRate);
+
         mTxFrameCounter = 1;
         SetTxFrameCounter(1);
 
@@ -779,6 +783,20 @@ void TinyLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 i += 1;
                 break;
             case LORAWAN_FOPT_RX_PARAM_SETUP_REQ:
+                new_data_rate = options[i + 1] & 0xF;
+                if (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250) {
+                    mRx2DataRate = new_data_rate;
+                    SetRx2DataRate(mRx2DataRate);
+
+                    mPendingFopts.length += 2;
+                    mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
+                    mPendingFopts.fopts[mPendingFopts.length++] = 0x2;
+                } else {
+                    mPendingFopts.length += 2;
+                    mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
+                    mPendingFopts.fopts[mPendingFopts.length++] = 0;
+                }
+
                 i += 4;
                 break;
             case LORAWAN_FOPT_DEV_STATUS_REQ:
@@ -837,11 +855,7 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window, uint8_t delay) {
     if (window == 1) {
         packet_length = RfmReceivePacket(packet, sizeof(packet), -1, -1, delay, false);
     } else {
-        if (mAdrEnabled) {
-            packet_length = RfmReceivePacket(packet, sizeof(packet), 8, SF12BW125, delay, true);
-        } else {
-            packet_length = RfmReceivePacket(packet, sizeof(packet), 8, SF9BW125, delay, true);
-        }
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, delay, true);
     }
 #ifdef DEBUG
     debug_int("D: PD: packet_length = ", packet_length);
@@ -1552,6 +1566,7 @@ void TinyLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
  */
 uint16_t eeprom_lw_tx_frame_counter EEMEM = 0;
 uint16_t eeprom_lw_rx_frame_counter EEMEM = 0;
+uint8_t eeprom_lw_rx2_data_rate EEMEM = 0;
 
 // TxFrameCounter
 uint16_t TinyLoRa::GetTxFrameCounter() {
@@ -1581,6 +1596,26 @@ uint16_t TinyLoRa::GetRxFrameCounter() {
 
 void TinyLoRa::SetRxFrameCounter(uint16_t count) {
     eeprom_write_word(&eeprom_lw_rx_frame_counter, count);
+}
+
+// Rx2DataRate
+uint8_t TinyLoRa::GetRx2DataRate() {
+    uint8_t value = eeprom_read_byte(&eeprom_lw_rx2_data_rate);
+
+    if (value == 0xFF) {
+#if OTAA
+        return SF12BW125;
+#else
+        // TTN
+        return SF9BW125;
+#endif
+    }
+
+    return value;
+}
+
+void TinyLoRa::SetRx2DataRate(uint8_t value) {
+    eeprom_write_byte(&eeprom_lw_rx2_data_rate, value);
 }
 
 #if OTAA
