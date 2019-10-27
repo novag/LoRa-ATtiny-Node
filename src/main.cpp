@@ -42,8 +42,6 @@
 #warning "No sensor enabled. Using fake temp."
 #endif
 
-#define SLEEP_TOTAL 1 // 113*8s = 904s ~15min
-
 volatile uint8_t wakeup_count = SLEEP_TOTAL;
 
 ISR(WDT_vect) {
@@ -160,8 +158,10 @@ int main() {
 
     _delay_ms(1000);
 
+#if ENABLE_I2C_MASTER
     SETBIT(DDR_I2C_SCL, PB_I2C_SCL);
     CLEARBIT(PRT_I2C_SCL, PB_I2C_SCL);
+#endif
 
     SETBIT(DDR_RFM_NSS, PB_RFM_NSS);
     SETBIT(PRT_RFM_NSS, PB_RFM_NSS);
