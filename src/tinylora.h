@@ -51,6 +51,38 @@
 #define LORAWAN_MTYPE_RFU                   0xC0
 #define LORAWAN_MTYPE_PROPRIETARY           0xE0
 
+#define LORAWAN_FCTRL_ADR                   0x80
+#define LORAWAN_FCTRL_ADR_ACK_REQ           0x40
+#define LORAWAN_FCTRL_ACK                   0x20
+
+#define LORAWAN_DIRECTION_UP                0
+#define LORAWAN_DIRECTION_DOWN              1
+
+// LoRaWAN frame options
+#define LORAWAN_FOPT_LINK_CHECK_REQ         0x02
+#define LORAWAN_FOPT_LINK_CHECK_ANS         0x02
+#define LORAWAN_FOPT_LINK_ADR_REQ           0x03
+#define LORAWAN_FOPT_LINK_ADR_ANS           0x03
+#define LORAWAN_FOPT_DUTY_CYCLE_REQ         0x04
+#define LORAWAN_FOPT_DUTY_CYCLE_ANS         0x04
+#define LORAWAN_FOPT_RX_PARAM_SETUP_REQ     0x05
+#define LORAWAN_FOPT_RX_PARAM_SETUP_ANS     0x05
+#define LORAWAN_FOPT_DEV_STATUS_REQ         0x06
+#define LORAWAN_FOPT_DEV_STATUS_ANS         0x06
+#define LORAWAN_FOPT_NEW_CHANNEL_REQ        0x07
+#define LORAWAN_FOPT_NEW_CHANNEL_ANS        0x07
+#define LORAWAN_FOPT_RX_TIMING_SETUP_REQ    0x08
+#define LORAWAN_FOPT_RX_TIMING_SETUP_ANS    0x08
+#define LORAWAN_FOPT_TX_PARAM_SETUP_REQ     0x09
+#define LORAWAN_FOPT_TX_PARAM_SETUP_ANS     0x09
+#define LORAWAN_FOPT_DL_CHANNEL_REQ         0x0A
+#define LORAWAN_FOPT_DL_CHANNEL_ANS         0x0A
+#define LORAWAN_FOPT_DEVICE_TIME_REQ        0x0D
+#define LORAWAN_FOPT_DEVICE_TIME_ANS        0x0D
+// Proprietary
+#define LORAWAN_FOPT_PROP_DISABLE_ADR       0x90
+#define LORAWAN_FOPT_PROP_ENABLE_ADR        0x91
+
 // LoRaWAN Join packet sizes
 #define LORAWAN_JOIN_REQUEST_SIZE       18
 #define LORAWAN_JOIN_ACCEPT_MAX_SIZE    28
@@ -60,6 +92,10 @@
 #define LORAWAN_RECEIVE_DELAY2      2
 #define LORAWAN_JOIN_ACCEPT_DELAY1  5
 #define LORAWAN_JOIN_ACCEPT_DELAY2  6
+
+// LoRaWAN ADR
+#define LORAWAN_ADR_ACK_LIMIT   64
+#define LORAWAN_ADR_ACK_DELAY   32
 
 // LoRaWAN Error
 #define LORAWAN_ERROR_NO_PACKET_RECEIVED    -1
@@ -71,39 +107,53 @@
 #define LORAWAN_ERROR_INVALID_JOIN_NONCE    -7
 
 // LoRaWAN spreading factors
-#define SF7BW125    0
-#define SF7BW250    1
-#define SF8BW125    2
+#define SF7BW250    6
+#define SF7BW125    5
+#define SF8BW125    4
 #define SF9BW125    3
-#define SF10BW125   4
-#define SF11BW125   5
-#define SF12BW125   6
+#define SF10BW125   2
+#define SF11BW125   1
+#define SF12BW125   0
+
+
+typedef struct {
+    uint8_t length;
+    uint8_t fopts[15];
+} fopts_t;
 
 class TinyLoRa {
   public:
-    uint16_t mTxFrameCounter = 0;
     void Init(void);
     bool HasJoined(void);
     int8_t Join();
     void Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length);
 
   private:
+    uint8_t mDataRate = SF10BW125;
     bool mHasJoined = false;
+    bool mAdrEnabled = false;
+    uint16_t mTxFrameCounter = 0;
+    uint16_t mRxFrameCounter = 0;
+    uint8_t mAdrAckCounter = 0;
     uint8_t mRandomNumber;
+    fopts_t mPendingFopts = {0};
     static const uint8_t FrequencyTable[9][3];
     static const uint8_t SFTable[7][3];
     static const uint8_t S_Table[16][16];
     void InitTimer1();
-    int8_t RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint8_t delay);
+    int8_t RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint8_t delay, bool shutdown);
     void RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_counter);
     void RfmWrite(uint8_t address, uint8_t data);
     uint8_t RfmRead(uint8_t address);
+    void SetAdrEnabled(bool enabled);
     void ProcessJoinAccept1_0(uint8_t *rfm_data, uint8_t *mic, uint8_t rfm_data_length);
     void ProcessJoinAccept1_1(uint8_t *rfm_data, uint8_t *mic, uint8_t rfm_data_length);
-    int8_t ProcessJoinAccept();
+    int8_t ProcessJoinAccept(uint8_t window, uint8_t delay);
+    void ProcessFrameOptions(uint8_t *options, uint8_t f_options_length);
+    int8_t ProcessDownlink(uint8_t window, uint8_t delay);
     void EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned int frame_counter, uint8_t direction);
     void CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_block, uint8_t *final_mic, uint8_t data_length);
-    void CalculateUplinkMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction);
+    void CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction);
     void GenerateKeys(const uint8_t *key, uint8_t *key1, uint8_t *key2);
     void ShiftLeftData(uint8_t *data);
     void XorData(uint8_t *new_data, uint8_t *old_data);
@@ -115,6 +165,11 @@ class TinyLoRa {
     void AesCalculateRoundKey(uint8_t round, uint8_t *round_key);
 
     // EEPROM
+    uint16_t GetTxFrameCounter();
+    void SetTxFrameCounter(uint16_t count);
+    uint16_t GetRxFrameCounter();
+    void SetRxFrameCounter(uint16_t count);
+
     void GetDevAddr(uint8_t *dev_addr);
     void SetDevAddr(uint8_t *dev_addr);
     uint16_t GetDevNonce();

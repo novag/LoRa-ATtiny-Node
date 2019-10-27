@@ -66,10 +66,18 @@ inline void debug_bytes(const char *prefix, uint8_t *bytes, uint8_t length) {
     debug(prefix);
 
     for (uint8_t i = 0; i < length; i++) {
-        buffer[0] = buffer[1] = buffer[3] = 0;
-        buffer[2] = ' ';
+        buffer[0] = buffer[1] = buffer[2] = buffer[3] = 0;
 
         utoa(bytes[i], buffer, 16);
+
+        for (uint8_t i = 0; i < sizeof(buffer); i++) {
+            if (buffer[i] == 0) {
+                buffer[i] = ' ';
+                buffer[i + 1] = 0;
+                break;
+            }
+        }
+
         debug(buffer);
     }
     TxByte('\n');

@@ -66,13 +66,13 @@ const uint8_t PROGMEM TinyLoRa::FrequencyTable[9][3] = {
 */
 const uint8_t PROGMEM TinyLoRa::SFTable[7][3] = {
     // bw    sf   agc
-    { 0x72, 0x74, 0x04 }, // SF7BW125
-    { 0x82, 0x74, 0x04 }, // SF7BW250
-    { 0x72, 0x84, 0x04 }, // SF8BW125
-    { 0x72, 0x94, 0x04 }, // SF9BW125
-    { 0x72, 0xA4, 0x04 }, // SF10BW125
+    { 0x72, 0xC4, 0x0C }, // SF12BW125
     { 0x72, 0xB4, 0x0C }, // SF11BW125
-    { 0x72, 0xC4, 0x0C }  // SF12BW125
+    { 0x72, 0xA4, 0x04 }, // SF10BW125
+    { 0x72, 0x94, 0x04 }, // SF9BW125
+    { 0x72, 0x84, 0x04 }, // SF8BW125
+    { 0x72, 0x74, 0x04 }, // SF7BW125
+    { 0x82, 0x74, 0x04 }  // SF7BW250
 };
 
 /*
@@ -144,6 +144,9 @@ void TinyLoRa::Init() {
     // FIFO pointers
     RfmWrite(RFM_REG_FIFO_TX_BASE_ADDR, 0x80);
     RfmWrite(RFM_REG_FIFO_RX_BASE_ADDR, 0x00);
+
+    mTxFrameCounter = GetTxFrameCounter();
+    mRxFrameCounter = GetRxFrameCounter();
 }
 
 /*
@@ -157,7 +160,7 @@ void TinyLoRa::Init() {
 *               delay Listen until n seconds elapsed, starting from last transmision
 *****************************************************************************************
 */
-int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint8_t delay) {
+int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint8_t delay, bool shutdown) {
     uint8_t irq_flags, packet_length, read_length;
 
     // Invert IQ
@@ -184,21 +187,19 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int
     // Clear interrupts
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
+    // Wait for start time
+    while (ticks < delay * 4);
+
     // Switch RFM to Rx
-    RfmWrite(RFM_REG_OP_MODE, 0x85);
+    RfmWrite(RFM_REG_OP_MODE, 0x86);
 
-    // Wait for Tx mode
-    while (RfmRead(RFM_REG_OP_MODE) != 0x85);
+    // Wait for Rx mode
+    while (RfmRead(RFM_REG_OP_MODE) != 0x86);
 
-    // Wait for RxDone or RxTimeout until delay seconds elapsed
-    while (ticks < delay * 4 + 1 && (irq_flags = RfmRead(RFM_REG_IRQ_FLAGS) & 0xC0) == 0);
-
-    // Switch RFM to standby
-    RfmWrite(RFM_REG_OP_MODE, 0x81);
-
-#ifdef DEBUG
-    debug("Receive window ended.\n");
-#endif
+    // Wait for RxDone or RxTimeout
+    do {
+        irq_flags = RfmRead(RFM_REG_IRQ_FLAGS);
+    } while (!(irq_flags & 0xC0));
 
     packet_length = RfmRead(RFM_REG_RX_NB_BYTES);
     RfmWrite(RFM_REG_FIFO_ADDR_PTR, RfmRead(RFM_REG_FIFO_RX_CURRENT_ADDR));
@@ -215,8 +216,10 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int
     // Clear interrupts
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
-    // Switch RFM to sleep
-    RfmWrite(RFM_REG_OP_MODE, 0x00);
+    if (shutdown) {
+        // Switch RFM to sleep
+        RfmWrite(RFM_REG_OP_MODE, 0x00);
+    }
 
     switch (irq_flags & 0xC0) {
         case RFM_STATUS_RX_TIMEOUT:
@@ -264,10 +267,10 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_
     RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[0][1])));
     RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[0][2])));
 
-    // SF10 BW 125 kHz
-    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(SFTable[SF9BW125][0])));
-    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(SFTable[SF9BW125][1])));
-    RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(SFTable[SF9BW125][2])));
+    // Spreading factor
+    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(SFTable[mDataRate][0])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(SFTable[mDataRate][1])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(SFTable[mDataRate][2])));
 
     // Set payload length to the right length
     RfmWrite(RFM_REG_PAYLOAD_LENGTH, packet_length);
@@ -302,6 +305,12 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_
         // Switch RFM to sleep
         RfmWrite(RFM_REG_OP_MODE, 0x00);
     }
+
+    // Saves memory cycles, at worst 10 lost packets
+    if (++mTxFrameCounter % 10) {
+        SetTxFrameCounter(mTxFrameCounter);
+    }
+    mAdrAckCounter++;
 }
 
 /*
@@ -351,6 +360,15 @@ uint8_t TinyLoRa::RfmRead(uint8_t address) {
 
     // Return received data
     return data;
+}
+
+/*
+*****************************************************************************************
+* Description : Function enables/disables the ADR mechanism
+*****************************************************************************************
+*/
+void TinyLoRa::SetAdrEnabled(bool enabled) {
+    mAdrEnabled = enabled;
 }
 
 #if OTAA
@@ -418,17 +436,11 @@ int8_t TinyLoRa::Join() {
 
     RfmSendPacket(packet, packet_length, true);
 
-    // Wait LORAWAN_JOIN_ACCEPT_DELAY1 seconds
-    while (ticks < LORAWAN_JOIN_ACCEPT_DELAY1 * 4 - 1);
-
-    if (!ProcessJoinAccept()) {
+    if (!ProcessJoinAccept(1, LORAWAN_JOIN_ACCEPT_DELAY1)) {
         return 0;
     }
 
-    // Wait LORAWAN_JOIN_ACCEPT_DELAY2 seconds
-    while (ticks < LORAWAN_JOIN_ACCEPT_DELAY2 * 4 - 1);
-
-    return ProcessJoinAccept();
+    return ProcessJoinAccept(2, LORAWAN_JOIN_ACCEPT_DELAY2);
 }
 
 /*
@@ -629,16 +641,22 @@ void TinyLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t *mic, uint8_t packe
 /*
 *****************************************************************************************
 * Description : Function listens and processes a LoRaWAN Join-accept message
+*
+* Arguments   : window Index of the receive window [1,2]
+*               delay Delay in seconds until start of receiving window
 *****************************************************************************************
 */
-int8_t TinyLoRa::ProcessJoinAccept() {
+int8_t TinyLoRa::ProcessJoinAccept(uint8_t window, uint8_t delay) {
     uint8_t packet[1 + LORAWAN_JOIN_ACCEPT_MAX_SIZE + 4];
     int8_t packet_length;
 
     uint8_t mic[4], dev_addr[4];
 
-    packet_length = RfmReceivePacket(packet, sizeof(packet), -1, -1,
-                                     LORAWAN_JOIN_ACCEPT_DELAY1);
+    if (window == 1) {
+        packet_length = RfmReceivePacket(packet, sizeof(packet), -1, -1, delay, false);
+    } else {
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, SF12BW125, delay, true);
+    }
 #ifdef DEBUG
     debug_int("D: PJA: packet_length = ", packet_length);
 #endif
@@ -702,6 +720,14 @@ int8_t TinyLoRa::ProcessJoinAccept() {
         dev_addr[3] = packet[7];
         SetDevAddr(dev_addr);
 
+        mTxFrameCounter = 1;
+        SetTxFrameCounter(1);
+
+        mRxFrameCounter = 1;
+        SetRxFrameCounter(1);
+
+        mAdrAckCounter = 0;
+
         mHasJoined = true;
 
         return 0;
@@ -715,6 +741,198 @@ int8_t TinyLoRa::ProcessJoinAccept() {
 
 /*
 *****************************************************************************************
+* Description : Function processes frame options of downlink packets
+*
+* Arguments   : options Pointer to the start of the frame options section
+*               f_options_length Length of the frame options section
+*****************************************************************************************
+*/
+void TinyLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
+    uint8_t new_data_rate;
+
+    if (f_options_length == 0) {
+        return;
+    }
+
+    for (uint8_t i = 0; i < f_options_length; i++) {
+        switch (options[i]) {
+            case LORAWAN_FOPT_LINK_CHECK_ANS:
+                i += 2;
+                break;
+            case LORAWAN_FOPT_LINK_ADR_REQ:
+                new_data_rate = options[i + 1] >> 4;
+                if (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250) {
+                    mDataRate = new_data_rate;
+
+                    mPendingFopts.length += 2;
+                    mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
+                    mPendingFopts.fopts[mPendingFopts.length++] = 0x2;
+                } else {
+                    mPendingFopts.length += 2;
+                    mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
+                    mPendingFopts.fopts[mPendingFopts.length++] = 0;
+                }
+
+                i += 4;
+                break;
+            case LORAWAN_FOPT_DUTY_CYCLE_REQ:
+                i += 1;
+                break;
+            case LORAWAN_FOPT_RX_PARAM_SETUP_REQ:
+                i += 4;
+                break;
+            case LORAWAN_FOPT_DEV_STATUS_REQ:
+                i += 2;
+                break;
+            case LORAWAN_FOPT_NEW_CHANNEL_REQ:
+                i += 5;
+                break;
+            case LORAWAN_FOPT_RX_TIMING_SETUP_REQ:
+                i += 1;
+                break;
+            case LORAWAN_FOPT_TX_PARAM_SETUP_REQ:
+                i += 1;
+                break;
+            case LORAWAN_FOPT_DL_CHANNEL_REQ:
+                i += 4;
+                break;
+            case LORAWAN_FOPT_DEVICE_TIME_ANS:
+                i += 5;
+                break;
+            case LORAWAN_FOPT_PROP_DISABLE_ADR:
+                mAdrEnabled = false;
+                break;
+            case LORAWAN_FOPT_PROP_ENABLE_ADR:
+                mAdrEnabled = true;
+                break;
+            default:
+                return;
+        }
+    }
+}
+
+/*
+*****************************************************************************************
+* Description : Function listens for and processes LoRaWAN downlink packets
+*
+* Arguments   : window Receive window index
+*               delay Delay in seconds until start of receiving window
+*****************************************************************************************
+*/
+int8_t TinyLoRa::ProcessDownlink(uint8_t window, uint8_t delay) {
+    uint8_t packet[64];
+    int8_t packet_length;
+
+    uint8_t f_options_length, port, payload_length;
+
+    uint16_t frame_counter;
+
+    uint8_t mic[4];
+
+#if OTAA
+    uint8_t dev_addr[4];
+    GetDevAddr(dev_addr);
+#endif // OTAA
+
+    if (window == 1) {
+        packet_length = RfmReceivePacket(packet, sizeof(packet), -1, -1, delay, false);
+    } else {
+        if (mAdrEnabled) {
+            packet_length = RfmReceivePacket(packet, sizeof(packet), 8, SF12BW125, delay, true);
+        } else {
+            packet_length = RfmReceivePacket(packet, sizeof(packet), 8, SF9BW125, delay, true);
+        }
+    }
+#ifdef DEBUG
+    debug_int("D: PD: packet_length = ", packet_length);
+#endif
+
+    if (packet_length <= 0) {
+        return LORAWAN_ERROR_NO_PACKET_RECEIVED;
+    }
+
+    if (packet_length > sizeof(packet)) {
+#ifdef DEBUG
+        debug("E: PD: Max packet length exceeded\n");
+#endif
+        return LORAWAN_ERROR_SIZE_EXCEEDED;
+    }
+
+    if (packet[0] != LORAWAN_MTYPE_UNCONFIRMED_DATA_DOWN
+            && packet[0] != LORAWAN_MTYPE_CONFIRMED_DATA_DOWN) {
+#ifdef DEBUG
+        if (packet_length > 0) {
+            debug_bytes("E: PD: Unexpected MTYPE: ", packet, packet_length);
+        } else {
+            debug("E: PD: Unexpected MTYPE\n");
+        }
+#endif
+        return LORAWAN_ERROR_UNEXPECTED_MTYPE;
+    }
+
+    frame_counter = packet[7] << 8 | packet[6];
+    if (frame_counter <= mRxFrameCounter) {
+#ifdef DEBUG
+        debug("E: PD: Invalid frame counter\n");
+        debug_uint("L: ", mRxFrameCounter);
+        debug_uint("R", frame_counter);
+#endif
+        return LORAWAN_ERROR_INVALID_FRAME_COUNTER;
+    }
+
+#if OTAA
+    if (!(packet[4] == dev_addr[0] && packet[3] == dev_addr[1]
+            && packet[2] == dev_addr[2] && packet[1] == dev_addr[3])) {
+#ifdef DEBUG
+        debug("E: PD: Unexpected DevAddr\n");
+#endif
+        return LORAWAN_ERROR_UNEXPECTED_DEV_ADDR;
+    }
+#else
+    if (!(packet[4] == DevAddr[0] && packet[3] == DevAddr[1]
+            && packet[2] == DevAddr[2] && packet[1] == DevAddr[3])) {
+#ifdef DEBUG
+        debug("E: PD: Unexpected DevAddr\n");
+#endif
+        return LORAWAN_ERROR_UNEXPECTED_DEV_ADDR;
+    }
+#endif // OTAA
+
+    // Check MIC
+    //CalculateMessageMic(packet, mic, packet_length - 4, frame_counter, LORAWAN_DIRECTION_DOWN);
+    //debug_bytes("mic: ", mic, 4);
+    //if (packet[packet_length - 4] != mic[0] || packet[packet_length - 3] != mic[1]
+    //        || packet[packet_length - 2] != mic[2] || packet[packet_length - 1] != mic[3]) {
+    //    return LORAWAN_ERROR_INVALID_MIC;
+    //}
+
+    // Saves memory cycles, we could loose more than 3 packets if we don't receive a packet at all
+    mRxFrameCounter = frame_counter;
+    if (mRxFrameCounter % 3) {
+        SetRxFrameCounter(mRxFrameCounter);
+    }
+
+    // Reset ADR acknowledge counter
+    mAdrAckCounter = 0;
+
+    // Process MAC commands
+    f_options_length = packet[5] & 0xF;
+    ProcessFrameOptions(&packet[8], f_options_length);
+
+    // Overwrite MAc commands if packet on port 0xBB
+    port = packet[8 + f_options_length];
+    if (port == 0 || port == 0xBB) {
+        payload_length = packet_length - 8 - f_options_length - 4;
+        EncryptPayload(&packet[8 + f_options_length + 1], payload_length, frame_counter, LORAWAN_DIRECTION_DOWN);
+
+        ProcessFrameOptions(&packet[8 + f_options_length + 1], payload_length);
+    }
+
+    return 0;
+}
+
+/*
+*****************************************************************************************
 * Description : Function contstructs a LoRaWAN packet and sends it
 *
 * Arguments   : port FPort of the frame
@@ -723,17 +941,14 @@ int8_t TinyLoRa::ProcessJoinAccept() {
 *****************************************************************************************
 */
 void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length) {
-    // Direction up
-    uint8_t direction = 0x00;
+    int8_t dres;
 
     uint8_t packet[64];
-    uint8_t packet_length;
+    uint8_t packet_length = 0;
 
     uint8_t mic[4];
 
     uint8_t mac_header = LORAWAN_MTYPE_UNCONFIRMED_DATA_UP;
-
-    uint8_t frame_control = 0;
 
 #if OTAA
     uint8_t dev_addr[4];
@@ -741,48 +956,78 @@ void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
 #endif // OTAA
 
     // Encrypt the data
-    EncryptPayload(payload, payload_length, mTxFrameCounter, direction);
+    EncryptPayload(payload, payload_length, mTxFrameCounter, LORAWAN_DIRECTION_UP);
+
+    // Spreading factor adjustment
+    // TODO: Probably too aggressive
+    if (mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT + LORAWAN_ADR_ACK_DELAY) {
+        mDataRate = SF12BW125;
+    }
 
     // Build the packet
-    packet[0] = mac_header;
+    packet[packet_length++] = mac_header;
 
 #if OTAA
-    packet[1] = dev_addr[3];
-    packet[2] = dev_addr[2];
-    packet[3] = dev_addr[1];
-    packet[4] = dev_addr[0];
+    packet[packet_length++] = dev_addr[3];
+    packet[packet_length++] = dev_addr[2];
+    packet[packet_length++] = dev_addr[1];
+    packet[packet_length++] = dev_addr[0];
 #else
-    packet[1] = DevAddr[3];
-    packet[2] = DevAddr[2];
-    packet[3] = DevAddr[1];
-    packet[4] = DevAddr[0];
+    packet[packet_length++] = DevAddr[3];
+    packet[packet_length++] = DevAddr[2];
+    packet[packet_length++] = DevAddr[1];
+    packet[packet_length++] = DevAddr[0];
 #endif // OTAA
 
-    packet[5] = frame_control;
+    // Frame control
+    if (mAdrEnabled) {
+        packet[packet_length] = LORAWAN_FCTRL_ADR;
 
-    packet[6] = mTxFrameCounter & 0xFF;
-    packet[7] = mTxFrameCounter >> 8;
+        if (mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT && mDataRate != SF12BW125) {
+            packet[packet_length] |= LORAWAN_FCTRL_ADR_ACK_REQ;
+        }
+    } else {
+        packet[packet_length] = 0;
+    }
 
-    packet[8] = fport;
+    if (mPendingFopts.length > 0) {
+        packet[packet_length++] |= mPendingFopts.length;
+        for (uint8_t i = 0; i < mPendingFopts.length; i++) {
+            packet[packet_length++] = mPendingFopts.fopts[i];
+        }
 
-    packet_length = 9;
+        // Clear fopts
+        memset(mPendingFopts.fopts, 0, mPendingFopts.length);
+        mPendingFopts.length = 0;
+    } else {
+        packet_length++;
+    }
+
+    packet[packet_length++] = mTxFrameCounter & 0xFF;
+    packet[packet_length++] = mTxFrameCounter >> 8;
+
+    packet[packet_length++] = fport;
 
     // Copy payload
     for (uint8_t i = 0; i < payload_length; i++) {
-        packet[packet_length + i] = payload[i];
+        packet[packet_length++] = payload[i];
     }
-    packet_length += payload_length;
 
     // Calculate MIC
-    CalculateUplinkMic(packet, mic, packet_length, mTxFrameCounter, direction);
+    CalculateMessageMic(packet, mic, packet_length, mTxFrameCounter, LORAWAN_DIRECTION_UP);
     for (uint8_t i = 0; i < 4; i++) {
-        packet[i + packet_length] = mic[i];
+        packet[packet_length++] = mic[i];
     }
-    packet_length += 4;
 
-    RfmSendPacket(packet, packet_length, false);
+    RfmSendPacket(packet, packet_length, true);
 
-    mTxFrameCounter++;
+    if ((dres = ProcessDownlink(1, LORAWAN_RECEIVE_DELAY1))) {
+        dres = ProcessDownlink(2, LORAWAN_RECEIVE_DELAY2);
+    }
+
+#ifdef DEBUG
+    //debug_int("D: T: res = ", dres);
+#endif
 }
 
 /*
@@ -971,7 +1216,7 @@ void TinyLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_
 
 /*
 *****************************************************************************************
-* Description : Function used to calculate the AES MIC of an uplink packet
+* Description : Function used to calculate the AES MIC of a LoRaWAN message
 *
 * Arguments   : *data pointer to the data to process
 *               final_mic 4 byte array for final MIC output
@@ -980,7 +1225,7 @@ void TinyLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_
 *               direction of msg is up
 *****************************************************************************************
 */
-void TinyLoRa::CalculateUplinkMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction) {
+void TinyLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction) {
     uint8_t block_b[16];
 #if OTAA
     uint8_t dev_addr[4], nwk_s_key[16];
@@ -1305,6 +1550,39 @@ void TinyLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
 /*
  * EEPROM variables
  */
+uint16_t eeprom_lw_tx_frame_counter EEMEM = 0;
+uint16_t eeprom_lw_rx_frame_counter EEMEM = 0;
+
+// TxFrameCounter
+uint16_t TinyLoRa::GetTxFrameCounter() {
+    uint16_t value = eeprom_read_word(&eeprom_lw_tx_frame_counter);
+
+    if (value == 0xFFFF) {
+        return 0;
+    }
+
+    return value;
+}
+
+void TinyLoRa::SetTxFrameCounter(uint16_t count) {
+    eeprom_write_word(&eeprom_lw_tx_frame_counter, count);
+}
+
+// RxFrameCounter
+uint16_t TinyLoRa::GetRxFrameCounter() {
+    uint16_t value = eeprom_read_word(&eeprom_lw_rx_frame_counter);
+
+    if (value == 0xFFFF) {
+        return 0;
+    }
+
+    return value;
+}
+
+void TinyLoRa::SetRxFrameCounter(uint16_t count) {
+    eeprom_write_word(&eeprom_lw_rx_frame_counter, count);
+}
+
 #if OTAA
 uint8_t eeprom_lw_dev_addr[4] EEMEM;
 uint16_t eeprom_lw_dev_nonce EEMEM = 1;
@@ -1325,7 +1603,13 @@ void TinyLoRa::SetDevAddr(uint8_t *dev_addr) {
 
 // DevNonce
 uint16_t TinyLoRa::GetDevNonce() {
-    return eeprom_read_word(&eeprom_lw_dev_nonce);
+    uint16_t value = eeprom_read_word(&eeprom_lw_dev_nonce);
+
+    if (value == 0xFFFF) {
+        return 1;
+    }
+
+    return value;
 }
 
 void TinyLoRa::SetDevNonce(uint16_t dev_nonce) {
