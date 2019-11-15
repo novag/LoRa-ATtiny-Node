@@ -25,6 +25,8 @@
 #include "utils.h"
 #include "tinyi2cmaster.h"
 
+//#define SI7021_FULL
+
 
 Si7021::Si7021(uint8_t i2c_addr) {
     mI2CAddr = i2c_addr;
@@ -92,6 +94,7 @@ uint16_t Si7021::ReadTemperature() {
     return SI7021_TIMEOUT_ERROR;
 }
 
+#ifdef SI7021_FULL
 float Si7021::ReadTemperatureFloat() {
     float temperature = Si7021::ReadTemperature();
     if (temperature == SI7021_CHECKSUM_ERROR || temperature == SI7021_TIMEOUT_ERROR) {
@@ -144,6 +147,7 @@ float Si7021::MeasureTemperatureFloat() {
 
     return temperature;
 }
+#endif // SI7021_FULL
 
 uint16_t Si7021::MeasureHumidity() {
     TinyI2C.Start(mI2CAddr, 0);
@@ -172,6 +176,7 @@ uint16_t Si7021::MeasureHumidity() {
     return SI7021_TIMEOUT_ERROR;
 }
 
+#ifdef SI7021_FULL
 float Si7021::MeasureHumidityFloat() {
     float humidity = Si7021::MeasureHumidity();
     if (humidity == SI7021_CHECKSUM_ERROR || humidity == SI7021_TIMEOUT_ERROR) {
@@ -184,6 +189,7 @@ float Si7021::MeasureHumidityFloat() {
 
     return humidity;
 }
+#endif // SI7021_FULL
 
 uint8_t Si7021::ReadRegister8(uint8_t reg) {
     uint8_t value;
