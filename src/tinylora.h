@@ -139,7 +139,7 @@ class TinyLoRa {
     uint8_t mRandomNumber;
     fopts_t mPendingFopts = {0};
     static const uint8_t FrequencyTable[9][3];
-    static const uint8_t SFTable[7][3];
+    static const uint8_t DataRateTable[7][3];
     static const uint8_t S_Table[16][16];
     void InitTimer1();
     int8_t RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint8_t delay, bool shutdown);
@@ -147,8 +147,9 @@ class TinyLoRa {
     void RfmWrite(uint8_t address, uint8_t data);
     uint8_t RfmRead(uint8_t address);
     void SetAdrEnabled(bool enabled);
-    void ProcessJoinAccept1_0(uint8_t *rfm_data, uint8_t *mic, uint8_t rfm_data_length);
-    void ProcessJoinAccept1_1(uint8_t *rfm_data, uint8_t *mic, uint8_t rfm_data_length);
+    inline bool CheckMic(uint8_t *cmic, uint8_t *rmic);
+    bool ProcessJoinAccept1_0(uint8_t *rfm_data, uint8_t rfm_data_length);
+    bool ProcessJoinAccept1_1(uint8_t *rfm_data, uint8_t rfm_data_length);
     int8_t ProcessJoinAccept(uint8_t window, uint8_t delay);
     void ProcessFrameOptions(uint8_t *options, uint8_t f_options_length);
     int8_t ProcessDownlink(uint8_t window, uint8_t delay);
@@ -178,7 +179,7 @@ class TinyLoRa {
     uint16_t GetDevNonce();
     void SetDevNonce(uint16_t dev_nonce);
     uint32_t GetJoinNonce();
-    void SetJoinNonce(uint8_t *data);
+    void SetJoinNonce(uint32_t join_nonce);
     void GetAppSKey(uint8_t *key);
     void SetAppSKey(uint8_t *key);
     void GetFNwkSIntKey(uint8_t *key);
