@@ -374,7 +374,7 @@ inline uint8_t TinyLoRa::RfmRead(uint8_t address) {
 */
 inline uint32_t TinyLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol) {
     // Clock drift
-    uint32_t drift = delay * 0.05;
+    uint32_t drift = delay * 5 / 100;
     delay -= drift;
 
     if ((255 - mRxSymbols) * ticks_per_half_symbol < drift) {
