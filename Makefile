@@ -18,8 +18,8 @@ TARGET := $(TARGETDIR)/out
 SRCEXT := cpp S
 SOURCES := $(foreach EXT,$(SRCEXT),$(shell find $(SRCDIR) -type f -name *.$(EXT)))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(addsuffix .o,$(basename $(SOURCES))))
-CFLAGS := -Os # -g -Wall
-LDFLAGS :=
+CFLAGS := -Os -fdata-sections -ffunction-sections -mcall-prologues # -g -Wall
+LDFLAGS := -Wl,--gc-sections
 LIB := -L lib
 INC := -I include
 

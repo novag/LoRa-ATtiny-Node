@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http:// www.gnu.org/licenses/>.
  */
 #ifdef DEBUG
-#include "basicserial.h"
+#include "debug.h"
 #endif
 
 #include <avr/sleep.h>
@@ -153,7 +153,7 @@ int main() {
 #endif
 
 #ifdef DEBUG
-    debug("Booted.\n");
+    debug(DSTR_BOOTED);
 #endif
 
     _delay_ms(1000);
@@ -170,14 +170,11 @@ int main() {
     SPI.Init();
 
     lora.Init();
-#ifdef DEBUG
-    debug("LoRa init done.\n");
-#endif
 
 #if OTAA
     while (!lora.HasJoined()) {
 #ifdef DEBUG
-        debug("Joining.\n");
+        debug(DSTR_JOINING);
 #endif
         lora.Join();
         _delay_ms(1000);
@@ -185,7 +182,7 @@ int main() {
 #endif // OTAA
 
 #ifdef DEBUG
-    debug("Joined network.\n");
+    debug(DSTR_JOINED);
 #endif
 
 #if ENABLE_I2C_MASTER
@@ -195,7 +192,7 @@ int main() {
     for (;;) {
         if (wakeup_count >= SLEEP_TOTAL) {
 #ifdef DEBUG
-            debug("Sending...\n");
+            debug(DSTR_SENDING);
 #endif
             payload_length = sizeof(payload);
 

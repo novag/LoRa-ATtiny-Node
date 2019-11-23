@@ -9,9 +9,6 @@
 #ifndef BASICSERIAL_H
 #define BASICSERIAL_H
 
-#include <stdint.h>
-#include <stdlib.h>
-
 #define BAUD_RATE 115200
 
 #ifdef F_CPU
@@ -30,57 +27,4 @@ extern "C" {
 
 #define TxByte(c) TxTimedByte(c, TXDELAY)
 
-inline void debug(const char *msg) {
-    while (*msg) TxByte(*msg++);
-}
-
-inline void debug_int(const char *prefix, int value) {
-    char buffer[6] = {0};
-    itoa(value, buffer, 10);
-
-    debug(prefix);
-    debug(buffer);
-    TxByte('\n');
-}
-
-inline void debug_uint(const char *prefix, unsigned int value) {
-    char buffer[6] = {0};
-    utoa(value, buffer, 10);
-
-    debug(prefix);
-    debug(buffer);
-    TxByte('\n');
-}
-
-inline void debug_binrep(const char *prefix, uint8_t value) {
-    debug(prefix);
-    for (int8_t i = 7; i >= 0; i--) {
-        (value & (1 << i)) ? TxByte('1') : TxByte('0');
-    }
-    TxByte('\n');
-}
-
-inline void debug_bytes(const char *prefix, uint8_t *bytes, uint8_t length) {
-    char buffer[4];
-
-    debug(prefix);
-
-    for (uint8_t i = 0; i < length; i++) {
-        buffer[0] = buffer[1] = buffer[2] = buffer[3] = 0;
-
-        utoa(bytes[i], buffer, 16);
-
-        for (uint8_t i = 0; i < sizeof(buffer); i++) {
-            if (buffer[i] == 0) {
-                buffer[i] = ' ';
-                buffer[i + 1] = 0;
-                break;
-            }
-        }
-
-        debug(buffer);
-    }
-    TxByte('\n');
-}
-
-#endif
+#endif // BASICSERIAL_H

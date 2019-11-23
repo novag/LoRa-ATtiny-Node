@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http:// www.gnu.org/licenses/>.
  */
 #ifdef DEBUG
-#include "basicserial.h"
+#include "debug.h"
 #endif
 
 #include <avr/eeprom.h>
@@ -24,6 +24,7 @@
 #include <string.h>
 #include <util/atomic.h>
 #include <util/delay.h>
+
 
 #include "config.h"
 #include "pins.h"
@@ -195,6 +196,10 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int
     // Switch RFM to Rx
     RfmWrite(RFM_REG_OP_MODE, 0x86);
 
+#ifdef DEBUG
+    debug(DSTR_2);
+#endif // DEBUG
+
     // Wait for RxDone or RxTimeout
     do {
         irq_flags = RfmRead(RFM_REG_IRQ_FLAGS);
@@ -222,19 +227,10 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int
 
     switch (irq_flags & 0xC0) {
         case RFM_STATUS_RX_TIMEOUT:
-#ifdef DEBUG
-            debug("RxTimeout\n");
-#endif
             return RFM_ERROR_RX_TIMEOUT;
         case RFM_STATUS_RX_DONE_CRC_ERROR:
-#ifdef DEBUG
-            debug("RxDone/CrcError\n");
-#endif
             return RFM_ERROR_CRC;
         case RFM_STATUS_RX_DONE:
-#ifdef DEBUG
-            debug("RxDone\n");
-#endif
             return packet_length;
     }
 
@@ -297,10 +293,14 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_
         ATOMIC_BLOCK(ATOMIC_FORCEON) {
             mTxDoneTickstamp = t0_ticks;
         }
+
+#ifdef DEBUG
+        debug(DSTR_1);
+#endif // DEBUG
     }
 
 #ifdef DEBUG
-    debug("D: RSP: TxDone\n");
+    debug(DSTR_RSP_TXDONE);
 #endif
 
     // Clear interrupt
@@ -327,7 +327,7 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_
 *               data    Data to be written
 *****************************************************************************************
 */
-void TinyLoRa::RfmWrite(uint8_t address, uint8_t data) {
+inline void TinyLoRa::RfmWrite(uint8_t address, uint8_t data) {
     // Set NSS pin Low to start communication
     PRT_RFM_NSS &= ~(1 << PB_RFM_NSS);
 
@@ -349,7 +349,7 @@ void TinyLoRa::RfmWrite(uint8_t address, uint8_t data) {
 * Returns   : Value of the register
 *****************************************************************************************
 */
-uint8_t TinyLoRa::RfmRead(uint8_t address) {
+inline uint8_t TinyLoRa::RfmRead(uint8_t address) {
     uint8_t data;
 
     // Set NSS pin low to start SPI communication
@@ -707,13 +707,10 @@ int8_t TinyLoRa::ProcessJoinAccept(uint8_t window) {
         packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay, true);
     }
 #ifdef DEBUG
-    debug_int("D: PJA: packet_length = ", packet_length);
+    debug_int16(DSTR_PJA_PLEN, packet_length);
 #endif
 
     if (packet_length <= 0) {
-#ifdef DEBUG
-        debug("E: PJA: Invalid packet length\n");
-#endif
         result = LORAWAN_ERROR_NO_PACKET_RECEIVED;
         goto end;
     }
@@ -724,13 +721,6 @@ int8_t TinyLoRa::ProcessJoinAccept(uint8_t window) {
     }
 
     if (packet[0] != LORAWAN_MTYPE_JOIN_ACCEPT) {
-#ifdef DEBUG
-        if (packet_length > 0) {
-            debug_bytes("E: PJA: Unexpected MTYPE: ", packet, packet_length);
-        } else {
-            debug("E: PJA: Unexpected MTYPE\n");
-        }
-#endif
         result = LORAWAN_ERROR_UNEXPECTED_MTYPE;
         goto end;
     }
@@ -751,9 +741,6 @@ int8_t TinyLoRa::ProcessJoinAccept(uint8_t window) {
     // Check JoinNonce validity
     join_nonce = packet[1] | packet[2] << 8 | (uint32_t) packet[3] << 16;
     if (GetJoinNonce() >= join_nonce) {
-#ifdef DEBUG
-        debug("E: PJA: Invalid JoinNonce\n");
-#endif
         result = LORAWAN_ERROR_INVALID_JOIN_NONCE;
         goto end;
     }
@@ -804,6 +791,10 @@ end:
     if (result == 0 || window == 2) {
         stop_timer0();
     }
+
+#ifdef DEBUG
+    debug_int16(DSTR_RESULT, result);
+#endif
 
     return result;
 }
@@ -930,7 +921,7 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
         packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay, true);
     }
 #ifdef DEBUG
-    debug_int("D: PD: packet_length = ", packet_length);
+    debug_int16(DSTR_PD_PLEN, packet_length);
 #endif
 
     if (packet_length <= 0) {
@@ -939,22 +930,12 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
     }
 
     if (packet_length > sizeof(packet)) {
-#ifdef DEBUG
-        debug("E: PD: Max packet length exceeded\n");
-#endif
         result = LORAWAN_ERROR_SIZE_EXCEEDED;
         goto end;
     }
 
     if (packet[0] != LORAWAN_MTYPE_UNCONFIRMED_DATA_DOWN
             && packet[0] != LORAWAN_MTYPE_CONFIRMED_DATA_DOWN) {
-#ifdef DEBUG
-        if (packet_length > 0) {
-            debug_bytes("E: PD: Unexpected MTYPE: ", packet, packet_length);
-        } else {
-            debug("E: PD: Unexpected MTYPE\n");
-        }
-#endif
         result = LORAWAN_ERROR_UNEXPECTED_MTYPE;
         goto end;
     }
@@ -962,9 +943,8 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
     frame_counter = packet[7] << 8 | packet[6];
     if (frame_counter <= mRxFrameCounter) {
 #ifdef DEBUG
-        debug("E: PD: Invalid frame counter\n");
-        debug_uint("L: ", mRxFrameCounter);
-        debug_uint("R", frame_counter);
+        debug_uint16(DSTR_FCNT_L, mRxFrameCounter);
+        debug_uint16(DSTR_FCNT_R, frame_counter);
 #endif
         result = LORAWAN_ERROR_INVALID_FRAME_COUNTER;
         goto end;
@@ -973,18 +953,12 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
 #if OTAA
     if (!(packet[4] == dev_addr[0] && packet[3] == dev_addr[1]
             && packet[2] == dev_addr[2] && packet[1] == dev_addr[3])) {
-#ifdef DEBUG
-        debug("E: PD: Unexpected DevAddr\n");
-#endif
         result = LORAWAN_ERROR_UNEXPECTED_DEV_ADDR;
         goto end;
     }
 #else
     if (!(packet[4] == DevAddr[0] && packet[3] == DevAddr[1]
             && packet[2] == DevAddr[2] && packet[1] == DevAddr[3])) {
-#ifdef DEBUG
-        debug("E: PD: Unexpected DevAddr\n");
-#endif
         result = LORAWAN_ERROR_UNEXPECTED_DEV_ADDR;
         goto end;
     }
@@ -1027,6 +1001,10 @@ end:
         stop_timer0();
     }
 
+#ifdef DEBUG
+    debug_int16(DSTR_RESULT, result);
+#endif
+
     return result;
 }
 
@@ -1040,8 +1018,6 @@ end:
 *****************************************************************************************
 */
 void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length) {
-    int8_t dres;
-
     uint8_t packet[64];
     uint8_t packet_length = 0;
 
@@ -1118,13 +1094,9 @@ void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
 
     RfmSendPacket(packet, packet_length, true);
 
-    if ((dres = ProcessDownlink(1))) {
-        dres = ProcessDownlink(2);
+    if (ProcessDownlink(1)) {
+        ProcessDownlink(2);
     }
-
-#ifdef DEBUG
-    //debug_int("D: T: res = ", dres);
-#endif
 }
 
 /*
@@ -1652,7 +1624,7 @@ uint16_t eeprom_lw_rx_frame_counter EEMEM = 0;
 uint8_t eeprom_lw_rx2_data_rate EEMEM = 0;
 
 // TxFrameCounter
-uint16_t TinyLoRa::GetTxFrameCounter() {
+inline uint16_t TinyLoRa::GetTxFrameCounter() {
     uint16_t value = eeprom_read_word(&eeprom_lw_tx_frame_counter);
 
     if (value == 0xFFFF) {
@@ -1662,12 +1634,12 @@ uint16_t TinyLoRa::GetTxFrameCounter() {
     return value;
 }
 
-void TinyLoRa::SetTxFrameCounter(uint16_t count) {
+inline void TinyLoRa::SetTxFrameCounter(uint16_t count) {
     eeprom_write_word(&eeprom_lw_tx_frame_counter, count);
 }
 
 // RxFrameCounter
-uint16_t TinyLoRa::GetRxFrameCounter() {
+inline uint16_t TinyLoRa::GetRxFrameCounter() {
     uint16_t value = eeprom_read_word(&eeprom_lw_rx_frame_counter);
 
     if (value == 0xFFFF) {
@@ -1677,12 +1649,12 @@ uint16_t TinyLoRa::GetRxFrameCounter() {
     return value;
 }
 
-void TinyLoRa::SetRxFrameCounter(uint16_t count) {
+inline void TinyLoRa::SetRxFrameCounter(uint16_t count) {
     eeprom_write_word(&eeprom_lw_rx_frame_counter, count);
 }
 
 // Rx2DataRate
-uint8_t TinyLoRa::GetRx2DataRate() {
+inline uint8_t TinyLoRa::GetRx2DataRate() {
     uint8_t value = eeprom_read_byte(&eeprom_lw_rx2_data_rate);
 
     if (value == 0xFF) {
@@ -1697,7 +1669,7 @@ uint8_t TinyLoRa::GetRx2DataRate() {
     return value;
 }
 
-void TinyLoRa::SetRx2DataRate(uint8_t value) {
+inline void TinyLoRa::SetRx2DataRate(uint8_t value) {
     eeprom_write_byte(&eeprom_lw_rx2_data_rate, value);
 }
 
@@ -1711,16 +1683,16 @@ uint8_t eeprom_lw_s_nwk_s_int_key[16] EEMEM;
 uint8_t eeprom_lw_nwk_s_enc_key[16] EEMEM;
 
 // DevAddr
-void TinyLoRa::GetDevAddr(uint8_t *dev_addr) {
+inline void TinyLoRa::GetDevAddr(uint8_t *dev_addr) {
     eeprom_read_block(dev_addr, eeprom_lw_dev_addr, 4);
 }
 
-void TinyLoRa::SetDevAddr(uint8_t *dev_addr) {
+inline void TinyLoRa::SetDevAddr(uint8_t *dev_addr) {
     eeprom_write_block(dev_addr, eeprom_lw_dev_addr, 4);
 }
 
 // DevNonce
-uint16_t TinyLoRa::GetDevNonce() {
+inline uint16_t TinyLoRa::GetDevNonce() {
     uint16_t value = eeprom_read_word(&eeprom_lw_dev_nonce);
 
     if (value == 0xFFFF) {
@@ -1730,12 +1702,12 @@ uint16_t TinyLoRa::GetDevNonce() {
     return value;
 }
 
-void TinyLoRa::SetDevNonce(uint16_t dev_nonce) {
+inline void TinyLoRa::SetDevNonce(uint16_t dev_nonce) {
     eeprom_write_word(&eeprom_lw_dev_nonce, dev_nonce);
 }
 
 // JoinNonce
-uint32_t TinyLoRa::GetJoinNonce() {
+inline uint32_t TinyLoRa::GetJoinNonce() {
     uint32_t value = eeprom_read_dword(&eeprom_lw_join_nonce);
 
     if (value == 0xFFFFFFFF) {
@@ -1745,43 +1717,43 @@ uint32_t TinyLoRa::GetJoinNonce() {
     return value;
 }
 
-void TinyLoRa::SetJoinNonce(uint32_t join_nonce) {
+inline void TinyLoRa::SetJoinNonce(uint32_t join_nonce) {
     eeprom_write_dword(&eeprom_lw_join_nonce, join_nonce);
 }
 
 // AppSKey
-void TinyLoRa::GetAppSKey(uint8_t *key) {
+inline void TinyLoRa::GetAppSKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_app_s_key, 16);
 }
 
-void TinyLoRa::SetAppSKey(uint8_t *key) {
+inline void TinyLoRa::SetAppSKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_app_s_key, 16);
 }
 
 // FNwkSIntKey
-void TinyLoRa::GetFNwkSIntKey(uint8_t *key) {
+inline void TinyLoRa::GetFNwkSIntKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_f_nwk_s_int_key, 16);
 }
 
-void TinyLoRa::SetFNwkSIntKey(uint8_t *key) {
+inline void TinyLoRa::SetFNwkSIntKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_f_nwk_s_int_key, 16);
 }
 
 // SNwkSIntKey
-void TinyLoRa::GetSNwkSIntKey(uint8_t *key) {
+inline void TinyLoRa::GetSNwkSIntKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_s_nwk_s_int_key, 16);
 }
 
-void TinyLoRa::SetSNwkSIntKey(uint8_t *key) {
+inline void TinyLoRa::SetSNwkSIntKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_s_nwk_s_int_key, 16);
 }
 
 // NwkSEncKey
-void TinyLoRa::GetNwkSEncKey(uint8_t *key) {
+inline void TinyLoRa::GetNwkSEncKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_nwk_s_enc_key, 16);
 }
 
-void TinyLoRa::SetNwkSEncKey(uint8_t *key) {
+inline void TinyLoRa::SetNwkSEncKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_nwk_s_enc_key, 16);
 }
 #endif // OTAA
