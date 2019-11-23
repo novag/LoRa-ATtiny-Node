@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "timing.h"
+
 // RFM
 #define RFM_REG_FIFO                    0x00
 #define RFM_REG_OP_MODE                 0x01
@@ -88,10 +90,15 @@
 #define LORAWAN_JOIN_ACCEPT_MAX_SIZE    28
 
 // LoRaWAN delays in seconds
-#define LORAWAN_RECEIVE_DELAY1      1
-#define LORAWAN_RECEIVE_DELAY2      2
-#define LORAWAN_JOIN_ACCEPT_DELAY1  5
-#define LORAWAN_JOIN_ACCEPT_DELAY2  6
+#define LORAWAN_RECEIVE_DELAY1_TICKS        1 * TICKS_PER_SECOND
+#define LORAWAN_RECEIVE_DELAY2_TICKS        2 * TICKS_PER_SECOND
+#define LORAWAN_JOIN_ACCEPT_DELAY1_TICKS    5 * TICKS_PER_SECOND
+#define LORAWAN_JOIN_ACCEPT_DELAY2_TICKS    6 * TICKS_PER_SECOND
+
+#define LORAWAN_RX_ERROR_TICKS              10 * TICKS_PER_SECOND / 1000        // 10 ms
+#define LORAWAN_RX_MARGIN_TICKS             2000 * TICKS_PER_SECOND / 1000000   // 2000 us
+#define LORAWAN_RX_SETUP_TICKS              2000 * TICKS_PER_SECOND / 1000000   // 2000 us
+#define LORAWAN_RX_MIN_SYMBOLS              6
 
 // LoRaWAN ADR
 #define LORAWAN_ADR_ACK_LIMIT   64
@@ -138,21 +145,26 @@ class TinyLoRa {
     uint8_t mAdrAckCounter = 0;
     uint8_t mRandomNumber;
     fopts_t mPendingFopts = {0};
+    uint8_t mRxSymbols = LORAWAN_RX_MIN_SYMBOLS;
+    uint32_t mTxDoneTickstamp;
     static const uint8_t FrequencyTable[9][3];
     static const uint8_t DataRateTable[7][3];
+    static const uint16_t DRTicksPerHalfSymbol[7];
     static const uint8_t S_Table[16][16];
-    void InitTimer1();
-    int8_t RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint8_t delay, bool shutdown);
-    void RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_counter);
+    int8_t RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint32_t rx_tickstamp, bool shutdown);
+    void RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_timer);
     void RfmWrite(uint8_t address, uint8_t data);
     uint8_t RfmRead(uint8_t address);
+    inline uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol);
+    inline int32_t CalculateRxWindowOffset(uint16_t ticks_per_half_symbol);
+    uint32_t CalculateRxDelay(uint8_t data_rate, uint32_t delay);
     void SetAdrEnabled(bool enabled);
     inline bool CheckMic(uint8_t *cmic, uint8_t *rmic);
     bool ProcessJoinAccept1_0(uint8_t *rfm_data, uint8_t rfm_data_length);
     bool ProcessJoinAccept1_1(uint8_t *rfm_data, uint8_t rfm_data_length);
-    int8_t ProcessJoinAccept(uint8_t window, uint8_t delay);
+    int8_t ProcessJoinAccept(uint8_t window);
     void ProcessFrameOptions(uint8_t *options, uint8_t f_options_length);
-    int8_t ProcessDownlink(uint8_t window, uint8_t delay);
+    int8_t ProcessDownlink(uint8_t window);
     void EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned int frame_counter, uint8_t direction);
     void CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_block, uint8_t *final_mic, uint8_t data_length);
     void CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction);
