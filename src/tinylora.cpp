@@ -531,18 +531,18 @@ bool TinyLoRa::ProcessJoinAccept1_0(uint8_t *packet, uint8_t packet_length) {
         buffer[0] = i;
 
         // JoinNonce
-        buffer[1] = packet[3];
+        buffer[1] = packet[1];
         buffer[2] = packet[2];
-        buffer[3] = packet[1];
+        buffer[3] = packet[3];
 
         // NetID
-        buffer[4] = packet[6];
+        buffer[4] = packet[4];
         buffer[5] = packet[5];
-        buffer[6] = packet[4];
+        buffer[6] = packet[6];
 
         // DevNonce
-        buffer[7] = dev_nonce >> 8;
-        buffer[8] = dev_nonce & 0xFF;
+        buffer[7] = dev_nonce & 0xFF;
+        buffer[8] = dev_nonce >> 8;
 
         AesEncrypt(AppKey, buffer);
 
@@ -573,18 +573,18 @@ bool TinyLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t packet_length) {
     buffer[0] = 0xFF; // TODO: JoinReqType
 
     // JoinEUI
-    buffer[1] = JoinEUI[0];
-    buffer[2] = JoinEUI[1];
-    buffer[3] = JoinEUI[2];
-    buffer[4] = JoinEUI[3];
-    buffer[5] = JoinEUI[4];
-    buffer[6] = JoinEUI[5];
-    buffer[7] = JoinEUI[6];
-    buffer[8] = JoinEUI[7];
+    buffer[1] = JoinEUI[7];
+    buffer[2] = JoinEUI[6];
+    buffer[3] = JoinEUI[5];
+    buffer[4] = JoinEUI[4];
+    buffer[5] = JoinEUI[3];
+    buffer[6] = JoinEUI[2];
+    buffer[7] = JoinEUI[1];
+    buffer[8] = JoinEUI[0];
 
     // DevNonce
-    buffer[9] = dev_nonce >> 8;
-    buffer[10] = dev_nonce & 0xFF;
+    buffer[9] = dev_nonce & 0xFF;
+    buffer[10] = dev_nonce >> 8;
 
     // MHDR
     buffer[11] = packet[0];
@@ -635,23 +635,23 @@ bool TinyLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t packet_length) {
         buffer[0] = i;
 
         // JoinNonce
-        buffer[1] = packet[3];
+        buffer[1] = packet[1];
         buffer[2] = packet[2];
-        buffer[3] = packet[1];
+        buffer[3] = packet[3];
 
         // JoinEUI
-        buffer[4] = JoinEUI[0];
-        buffer[5] = JoinEUI[1];
-        buffer[6] = JoinEUI[2];
-        buffer[7] = JoinEUI[3];
-        buffer[8] = JoinEUI[4];
-        buffer[9] = JoinEUI[5];
-        buffer[10] = JoinEUI[6];
-        buffer[11] = JoinEUI[7];
+        buffer[4] = JoinEUI[7];
+        buffer[5] = JoinEUI[6];
+        buffer[6] = JoinEUI[5];
+        buffer[7] = JoinEUI[4];
+        buffer[8] = JoinEUI[3];
+        buffer[9] = JoinEUI[2];
+        buffer[10] = JoinEUI[1];
+        buffer[11] = JoinEUI[0];
 
         // DevNonce
-        buffer[12] = dev_nonce >> 8;
-        buffer[13] = dev_nonce & 0xFF;
+        buffer[12] = dev_nonce & 0xFF;
+        buffer[13] = dev_nonce >> 8;
 
         if (i == 2) {
             AesEncrypt(AppKey, buffer);
