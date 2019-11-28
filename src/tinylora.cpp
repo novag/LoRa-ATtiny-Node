@@ -391,7 +391,7 @@ inline uint32_t TinyLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t tick
 * Description : Function calculates the centered rx window offset
 *****************************************************************************************
 */
-inline int32_t TinyLoRa::CalculateRxWindowOffset(uint16_t ticks_per_half_symbol) {
+inline int32_t TinyLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) {
     const uint16_t ticks_per_symbol = 2 * ticks_per_half_symbol;
 
     uint8_t rx_symbols = ((2 * LORAWAN_RX_MIN_SYMBOLS - 8) * ticks_per_symbol + 2 * LORAWAN_RX_ERROR_TICKS + ticks_per_symbol - 1) / ticks_per_symbol;

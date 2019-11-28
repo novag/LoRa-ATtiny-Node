@@ -156,7 +156,7 @@ class TinyLoRa {
     inline void RfmWrite(uint8_t address, uint8_t data);
     inline uint8_t RfmRead(uint8_t address);
     inline uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol);
-    inline int32_t CalculateRxWindowOffset(uint16_t ticks_per_half_symbol);
+    inline int32_t CalculateRxWindowOffset(int16_t ticks_per_half_symbol);
     uint32_t CalculateRxDelay(uint8_t data_rate, uint32_t delay);
     void SetAdrEnabled(bool enabled);
     inline bool CheckMic(uint8_t *cmic, uint8_t *rmic);
