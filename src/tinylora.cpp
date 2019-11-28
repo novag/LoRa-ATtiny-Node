@@ -775,11 +775,11 @@ int8_t TinyLoRa::ProcessJoinAccept(uint8_t window) {
     mRx2DataRate = packet[11] & 0xF;
     SetRx2DataRate(mRx2DataRate);
 
-    mTxFrameCounter = 1;
-    SetTxFrameCounter(1);
+    mTxFrameCounter = 0;
+    SetTxFrameCounter(0);
 
-    mRxFrameCounter = 1;
-    SetRxFrameCounter(1);
+    mRxFrameCounter = 0;
+    SetRxFrameCounter(0);
 
     mAdrAckCounter = 0;
 
@@ -941,7 +941,7 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
     }
 
     frame_counter = packet[7] << 8 | packet[6];
-    if (frame_counter <= mRxFrameCounter) {
+    if (frame_counter < mRxFrameCounter) {
 #ifdef DEBUG
         debug_uint16(DSTR_FCNT_L, mRxFrameCounter);
         debug_uint16(DSTR_FCNT_R, frame_counter);
@@ -973,7 +973,7 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
     //}
 
     // Saves memory cycles, we could loose more than 3 packets if we don't receive a packet at all
-    mRxFrameCounter = frame_counter;
+    mRxFrameCounter = frame_counter + 1;
     if (mRxFrameCounter % 3) {
         SetRxFrameCounter(mRxFrameCounter);
     }
