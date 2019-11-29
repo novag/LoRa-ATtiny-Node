@@ -125,8 +125,8 @@ void TinyLoRa::Init() {
     // LoRa mode
     RfmWrite(RFM_REG_OP_MODE, 0x80);
 
-    // PA pin (maximal power)
-    RfmWrite(RFM_REG_PA_CONFIG, 0xFF);
+    // PA_BOOST pin / +15 dBm output power
+    RfmWrite(RFM_REG_PA_CONFIG, 0xFD);
 
     // Preamble length: 8 symbols
     // 0x0008 + 4 = 12
