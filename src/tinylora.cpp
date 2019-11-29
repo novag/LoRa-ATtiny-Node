@@ -840,14 +840,12 @@ void TinyLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 break;
             case LORAWAN_FOPT_LINK_ADR_REQ:
                 new_data_rate = options[i + 1] >> 4;
-                if (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250) {
+                if (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250) { // Reversed table index (SF7B250 higher)
                     mDataRate = new_data_rate;
 
-                    mPendingFopts.length += 2;
                     mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
                     mPendingFopts.fopts[mPendingFopts.length++] = 0x2;
                 } else {
-                    mPendingFopts.length += 2;
                     mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
                     mPendingFopts.fopts[mPendingFopts.length++] = 0;
                 }
@@ -859,15 +857,13 @@ void TinyLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 break;
             case LORAWAN_FOPT_RX_PARAM_SETUP_REQ:
                 new_data_rate = options[i + 1] & 0xF;
-                if (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250) {
+                if (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250) { // Reversed table index (SF7B250 higher)
                     mRx2DataRate = new_data_rate;
                     SetRx2DataRate(mRx2DataRate);
 
-                    mPendingFopts.length += 2;
                     mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
                     mPendingFopts.fopts[mPendingFopts.length++] = 0x2;
                 } else {
-                    mPendingFopts.length += 2;
                     mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
                     mPendingFopts.fopts[mPendingFopts.length++] = 0;
                 }
@@ -1071,32 +1067,30 @@ void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
 #endif // OTAA
 
     // Frame control
+    packet[packet_length] = 0;
     if (mAdrEnabled) {
-        packet[packet_length] = LORAWAN_FCTRL_ADR;
+        packet[packet_length] |= LORAWAN_FCTRL_ADR;
 
         if (mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT && mDataRate != SF12BW125) {
             packet[packet_length] |= LORAWAN_FCTRL_ADR_ACK_REQ;
         }
-    } else {
-        packet[packet_length] = 0;
     }
+    packet[packet_length++] |= mPendingFopts.length;
 
-    if (mPendingFopts.length > 0) {
-        packet[packet_length++] |= mPendingFopts.length;
-        for (uint8_t i = 0; i < mPendingFopts.length; i++) {
-            packet[packet_length++] = mPendingFopts.fopts[i];
-        }
-
-        // Clear fopts
-        memset(mPendingFopts.fopts, 0, mPendingFopts.length);
-        mPendingFopts.length = 0;
-    } else {
-        packet_length++;
-    }
-
+    // Uplink frame counter
     packet[packet_length++] = mTxFrameCounter & 0xFF;
     packet[packet_length++] = mTxFrameCounter >> 8;
 
+    // Frame options
+    for (uint8_t i = 0; i < mPendingFopts.length; i++) {
+        packet[packet_length++] = mPendingFopts.fopts[i];
+    }
+
+    // Clear fopts
+    memset(mPendingFopts.fopts, 0, mPendingFopts.length);
+    mPendingFopts.length = 0;
+
+    // Frame port
     packet[packet_length++] = fport;
 
     // Copy payload
