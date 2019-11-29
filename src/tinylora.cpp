@@ -117,6 +117,8 @@ const uint8_t PROGMEM TinyLoRa::S_Table[16][16] = {
 };
 
 void TinyLoRa::Init() {
+    uint8_t detect_optimize;
+
     // Sleep
     RfmWrite(RFM_REG_OP_MODE, 0x00);
 
@@ -131,11 +133,14 @@ void TinyLoRa::Init() {
     RfmWrite(RFM_REG_PREAMBLE_MSB, 0x00);
     RfmWrite(RFM_REG_PREAMBLE_LSB, 0x08);
 
-    // Low datarate optimization off, AGC auto on
-    RfmWrite(RFM_REG_MODEM_CONFIG_3, 0x0C);
-
     // LoRa sync word
     RfmWrite(RFM_REG_SYNC_WORD, 0x34);
+
+    // Errata Note - 2.3 Receiver Spurious Reception
+    detect_optimize = RfmRead(RFM_REG_DETECT_OPTIMIZE);
+    RfmWrite(RFM_REG_DETECT_OPTIMIZE, (detect_optimize & 0x78) | 0x03);
+    RfmWrite(RFM_REG_IF_FREQ_1, 0x00);
+    RfmWrite(RFM_REG_IF_FREQ_2, 0x40);
 
     // FIFO pointers
     RfmWrite(RFM_REG_FIFO_TX_BASE_ADDR, 0x80);
@@ -157,11 +162,14 @@ void TinyLoRa::Init() {
 *               rx_tickstamp Listen until rx_tickstamp elapsed
 *****************************************************************************************
 */
-int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp, bool shutdown) {
-    uint8_t irq_flags, packet_length, read_length;
+int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp) {
+    uint8_t modem_config_3, irq_flags, packet_length, read_length;
 
     // Wait for start time
     wait_until(rx_tickstamp - LORAWAN_RX_SETUP_TICKS);
+
+    // Switch RFM to standby
+    RfmWrite(RFM_REG_OP_MODE, 0x81);
 
     // Invert IQ
     RfmWrite(RFM_REG_INVERT_IQ, 0x66);
@@ -175,10 +183,18 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
     RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[channel][1])));
     RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[channel][2])));
 
-    // Spreading factor
+    // Bandwidth / Coding Rate / Implicit Header Mode
     RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(DataRateTable[dri][0])));
+
+    // Spreading Factor / Tx Continuous Mode / Crc
     RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(DataRateTable[dri][1])));
-    RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(DataRateTable[dri][2])));
+
+    // Automatic Gain Control / Low Data Rate Optimize
+    modem_config_3 = pgm_read_byte(&(DataRateTable[dri][2]));
+    if (dri == SF12BW125 || dri == SF11BW125) {
+        modem_config_3 |= 0x08;
+    }
+    RfmWrite(RFM_REG_MODEM_CONFIG_3, modem_config_3);
 
     // Rx timeout
     RfmWrite(RFM_REG_SYMB_TIMEOUT_LSB, mRxSymbols);
@@ -216,10 +232,8 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
     // Clear interrupts
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
-    if (shutdown) {
-        // Switch RFM to sleep
-        RfmWrite(RFM_REG_OP_MODE, 0x00);
-    }
+    // Switch RFM to sleep
+    RfmWrite(RFM_REG_OP_MODE, 0x00);
 
     switch (irq_flags & 0xC0) {
         case RFM_STATUS_RX_TIMEOUT:
@@ -245,11 +259,10 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
 *****************************************************************************************
 */
 void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer) {
+    uint8_t modem_config_3;
+
     // Switch RFM to standby
     RfmWrite(RFM_REG_OP_MODE, 0x81);
-
-    // wait for standby mode
-    while (RfmRead(RFM_REG_OP_MODE) != 0x81);
 
     // Don't invert IQ
     RfmWrite(RFM_REG_INVERT_IQ, 0x27);
@@ -260,10 +273,18 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
     RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[channel][1])));
     RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[channel][2])));
 
-    // Spreading factor
+    // Bandwidth / Coding Rate / Implicit Header Mode
     RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(DataRateTable[dri][0])));
+
+    // Spreading Factor / Tx Continuous Mode / Crc
     RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(DataRateTable[dri][1])));
-    RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(DataRateTable[dri][2])));
+
+    // Automatic Gain Control / Low Data Rate Optimize
+    modem_config_3 = pgm_read_byte(&(DataRateTable[dri][2]));
+    if (dri == SF12BW125 || dri == SF11BW125) {
+        modem_config_3 |= 0x08;
+    }
+    RfmWrite(RFM_REG_MODEM_CONFIG_3, modem_config_3);
 
     // Set payload length to the right length
     RfmWrite(RFM_REG_PAYLOAD_LENGTH, packet_length);
@@ -304,10 +325,8 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
     // Clear interrupt
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
-    if (!start_timer) {
-        // Switch RFM to sleep
-        RfmWrite(RFM_REG_OP_MODE, 0x00);
-    }
+    // Switch RFM to sleep
+    RfmWrite(RFM_REG_OP_MODE, 0x00);
 
     // Saves memory cycles, at worst 10 lost packets
     if (++mTxFrameCounter % 10) {
@@ -699,11 +718,11 @@ int8_t TinyLoRa::ProcessJoinAccept(uint8_t window) {
     if (window == 1) {
         rx_delay = CalculateRxDelay(mDataRate, LORAWAN_JOIN_ACCEPT_DELAY1_TICKS);
 
-        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay, false);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay);
     } else {
         rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_JOIN_ACCEPT_DELAY2_TICKS);
 
-        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay, true);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
     }
 #ifdef DEBUG
     debug_int16(DSTR_PJA_PLEN, packet_length);
@@ -913,11 +932,11 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
     if (window == 1) {
         rx_delay = CalculateRxDelay(mDataRate, LORAWAN_RECEIVE_DELAY1_TICKS);
 
-        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay, false);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay);
     } else {
         rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_RECEIVE_DELAY2_TICKS);
 
-        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay, true);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
     }
 #ifdef DEBUG
     debug_int16(DSTR_PD_PLEN, packet_length);

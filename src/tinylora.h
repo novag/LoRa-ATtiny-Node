@@ -28,9 +28,11 @@
 #define RFM_REG_PAYLOAD_LENGTH          0x22
 #define RFM_REG_MODEM_CONFIG_3          0x26
 // Only in SX1276 datasheet
+#define RFM_REG_IF_FREQ_2               0x2F
+#define RFM_REG_IF_FREQ_1               0x30
+#define RFM_REG_DETECT_OPTIMIZE         0x31
 #define RFM_REG_INVERT_IQ               0x33
 #define RFM_REG_SYNC_WORD               0x39
-// UNDOCUMENTED
 #define RFM_REG_INVERT_IQ_2             0x3B
 
 // RFM status
@@ -154,7 +156,7 @@ class TinyLoRa {
     static const uint8_t DataRateTable[7][3];
     static const uint16_t DRTicksPerHalfSymbol[7];
     static const uint8_t S_Table[16][16];
-    int8_t RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp, bool shutdown);
+    int8_t RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp);
     void RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer);
     inline void RfmWrite(uint8_t address, uint8_t data);
     inline uint8_t RfmRead(uint8_t address);
