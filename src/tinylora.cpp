@@ -152,12 +152,12 @@ void TinyLoRa::Init() {
 *
 * Arguments   : *packet Pointer to Rx packet array
 *               packet_max_length Maximum number of bytes to read from Rx packet
-*               channel The FrequencyTable channel index to listen on (-1 Don't change)
-*               dri The DataRateTable index to listen on (-1 Don't change)
+*               channel The FrequencyTable channel index to listen on
+*               dri The DataRateTable index to listen on
 *               rx_tickstamp Listen until rx_tickstamp elapsed
 *****************************************************************************************
 */
-int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t dri, uint32_t rx_tickstamp, bool shutdown) {
+int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp, bool shutdown) {
     uint8_t irq_flags, packet_length, read_length;
 
     // Wait for start time
@@ -171,18 +171,14 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int
     RfmWrite(RFM_REG_FIFO_ADDR_PTR, 0x00);
 
     // Channel
-    if (channel > -1) {
-        RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(FrequencyTable[channel][0])));
-        RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[channel][1])));
-        RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[channel][2])));
-    }
+    RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(FrequencyTable[channel][0])));
+    RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[channel][1])));
+    RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[channel][2])));
 
     // Spreading factor
-    if (dri > -1) {
-        RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(DataRateTable[dri][0])));
-        RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(DataRateTable[dri][1])));
-        RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(DataRateTable[dri][2])));
-    }
+    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(DataRateTable[dri][0])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(DataRateTable[dri][1])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(DataRateTable[dri][2])));
 
     // Rx timeout
     RfmWrite(RFM_REG_SYMB_TIMEOUT_LSB, mRxSymbols);
@@ -243,10 +239,12 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int
 *
 * Arguments   : *packet Pointer to array with data to be send
 *               packet_length Length of the packet to send
+*               channel The FrequencyTable channel index
+*               dri The DataRateTable index
 *               start_timer Wheter or not to start a timer for Rx delay
 *****************************************************************************************
 */
-void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_timer) {
+void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer) {
     // Switch RFM to standby
     RfmWrite(RFM_REG_OP_MODE, 0x81);
 
@@ -258,14 +256,14 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_
     RfmWrite(RFM_REG_INVERT_IQ_2, 0x1D);
 
     // Channel
-    RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(FrequencyTable[0][0])));
-    RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[0][1])));
-    RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[0][2])));
+    RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(FrequencyTable[channel][0])));
+    RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[channel][1])));
+    RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[channel][2])));
 
     // Spreading factor
-    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(DataRateTable[mDataRate][0])));
-    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(DataRateTable[mDataRate][1])));
-    RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(DataRateTable[mDataRate][2])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(DataRateTable[dri][0])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(DataRateTable[dri][1])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_3, pgm_read_byte(&(DataRateTable[dri][2])));
 
     // Set payload length to the right length
     RfmWrite(RFM_REG_PAYLOAD_LENGTH, packet_length);
@@ -487,7 +485,8 @@ int8_t TinyLoRa::Join() {
     }
     packet_length += 4;
 
-    RfmSendPacket(packet, packet_length, true);
+    mChannel = mPseudoByte & 0x01;
+    RfmSendPacket(packet, packet_length, mChannel, mDataRate, true);
 
     if (!ProcessJoinAccept(1)) {
         return 0;
@@ -700,7 +699,7 @@ int8_t TinyLoRa::ProcessJoinAccept(uint8_t window) {
     if (window == 1) {
         rx_delay = CalculateRxDelay(mDataRate, LORAWAN_JOIN_ACCEPT_DELAY1_TICKS);
 
-        packet_length = RfmReceivePacket(packet, sizeof(packet), -1, -1, mTxDoneTickstamp + rx_delay, false);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay, false);
     } else {
         rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_JOIN_ACCEPT_DELAY2_TICKS);
 
@@ -914,7 +913,7 @@ int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
     if (window == 1) {
         rx_delay = CalculateRxDelay(mDataRate, LORAWAN_RECEIVE_DELAY1_TICKS);
 
-        packet_length = RfmReceivePacket(packet, sizeof(packet), -1, -1, mTxDoneTickstamp + rx_delay, false);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay, false);
     } else {
         rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_RECEIVE_DELAY2_TICKS);
 
@@ -1092,7 +1091,8 @@ void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
         packet[packet_length++] = mic[i];
     }
 
-    RfmSendPacket(packet, packet_length, true);
+    mChannel = mPseudoByte & 0x03;
+    RfmSendPacket(packet, packet_length, mChannel, mDataRate, true);
 
     if (ProcessDownlink(1)) {
         ProcessDownlink(2);
@@ -1280,7 +1280,7 @@ void TinyLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_
     final_mic[2] = new_data[2];
     final_mic[3] = new_data[3];
 
-    mRandomNumber = final_mic[3] & 0x03;
+    mPseudoByte = final_mic[3];
 }
 
 /*

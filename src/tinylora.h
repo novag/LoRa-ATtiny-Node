@@ -60,6 +60,8 @@
 #define LORAWAN_DIRECTION_UP                0
 #define LORAWAN_DIRECTION_DOWN              1
 
+#define LORAWAN_UPLINK_CHANNEL_COUNT        8
+
 // LoRaWAN frame options
 #define LORAWAN_FOPT_LINK_CHECK_REQ         0x02
 #define LORAWAN_FOPT_LINK_CHECK_ANS         0x02
@@ -136,6 +138,7 @@ class TinyLoRa {
     void Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length);
 
   private:
+    uint8_t mChannel = 0;
     uint8_t mDataRate = SF10BW125;
     uint8_t mRx2DataRate;
     bool mHasJoined = false;
@@ -143,7 +146,7 @@ class TinyLoRa {
     uint16_t mTxFrameCounter = 0;
     uint16_t mRxFrameCounter = 0;
     uint8_t mAdrAckCounter = 0;
-    uint8_t mRandomNumber;
+    uint8_t mPseudoByte;
     fopts_t mPendingFopts = {0};
     uint8_t mRxSymbols = LORAWAN_RX_MIN_SYMBOLS;
     uint32_t mTxDoneTickstamp;
@@ -151,8 +154,8 @@ class TinyLoRa {
     static const uint8_t DataRateTable[7][3];
     static const uint16_t DRTicksPerHalfSymbol[7];
     static const uint8_t S_Table[16][16];
-    int8_t RfmReceivePacket(uint8_t *packet, size_t packet_max_length, int8_t channel, int8_t sf, uint32_t rx_tickstamp, bool shutdown);
-    void RfmSendPacket(uint8_t *packet, uint8_t packet_length, bool start_timer);
+    int8_t RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp, bool shutdown);
+    void RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer);
     inline void RfmWrite(uint8_t address, uint8_t data);
     inline uint8_t RfmRead(uint8_t address);
     inline uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol);
