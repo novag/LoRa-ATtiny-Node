@@ -29,7 +29,7 @@ enum DStr {
     DSTR_JOINING,
     DSTR_JOINED,
     DSTR_SENDING,
-    // tinylora.cpp
+    // slimlora.cpp
     DSTR_RSP_TXDONE,
     DSTR_RESULT,
     DSTR_PJA_PLEN,

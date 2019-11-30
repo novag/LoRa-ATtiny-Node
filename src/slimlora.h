@@ -1,5 +1,5 @@
-#ifndef TINY_LORA_H
-#define TINY_LORA_H
+#ifndef SLIM_LORA_H
+#define SLIM_LORA_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -132,12 +132,13 @@ typedef struct {
     uint8_t fopts[15];
 } fopts_t;
 
-class TinyLoRa {
+class SlimLoRa {
   public:
     void Init(void);
     bool HasJoined(void);
     int8_t Join();
     void Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length);
+    void SetAdrEnabled(bool enabled);
 
   private:
     uint8_t mChannel = 0;
@@ -163,7 +164,6 @@ class TinyLoRa {
     inline uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol);
     inline int32_t CalculateRxWindowOffset(int16_t ticks_per_half_symbol);
     uint32_t CalculateRxDelay(uint8_t data_rate, uint32_t delay);
-    void SetAdrEnabled(bool enabled);
     inline bool CheckMic(uint8_t *cmic, uint8_t *rmic);
     bool ProcessJoinAccept1_0(uint8_t *rfm_data, uint8_t rfm_data_length);
     bool ProcessJoinAccept1_1(uint8_t *rfm_data, uint8_t rfm_data_length);

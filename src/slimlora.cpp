@@ -28,7 +28,7 @@
 
 #include "config.h"
 #include "pins.h"
-#include "tinylora.h"
+#include "slimlora.h"
 #include "tinyspi.h"
 
 #if OTAA
@@ -49,7 +49,7 @@ extern TinySPI SPI;
 * Description: Frequency band Europe
 *****************************************************************************************
 */
-const uint8_t PROGMEM TinyLoRa::FrequencyTable[9][3] = {
+const uint8_t PROGMEM SlimLoRa::FrequencyTable[9][3] = {
     { 0xD9, 0x06, 0x8B }, // Channel 0 868.100 MHz / 61.035 Hz = 14222987 = 0xD9068B
     { 0xD9, 0x13, 0x58 }, // Channel 1 868.300 MHz / 61.035 Hz = 14226264 = 0xD91358
     { 0xD9, 0x20, 0x24 }, // Channel 2 868.500 MHz / 61.035 Hz = 14229540 = 0xD92024
@@ -66,7 +66,7 @@ const uint8_t PROGMEM TinyLoRa::FrequencyTable[9][3] = {
 * Description: Data rate
 *****************************************************************************************
 */
-const uint8_t PROGMEM TinyLoRa::DataRateTable[7][3] = {
+const uint8_t PROGMEM SlimLoRa::DataRateTable[7][3] = {
     // bw    sf   agc
     { 0x72, 0xC4, 0x0C }, // SF12BW125
     { 0x72, 0xB4, 0x0C }, // SF11BW125
@@ -82,7 +82,7 @@ const uint8_t PROGMEM TinyLoRa::DataRateTable[7][3] = {
 * Description: Half symbol times
 *****************************************************************************************
 */
-const uint16_t PROGMEM TinyLoRa::DRTicksPerHalfSymbol[7] = {
+const uint16_t PROGMEM SlimLoRa::DRTicksPerHalfSymbol[7] = {
     ((128 << 7) * TICKS_PER_SECOND + 500000) / 1000000, // SF12BW125
     ((128 << 6) * TICKS_PER_SECOND + 500000) / 1000000, // SF11BW125
     ((128 << 5) * TICKS_PER_SECOND + 500000) / 1000000, // SF10BW125
@@ -97,7 +97,7 @@ const uint16_t PROGMEM TinyLoRa::DRTicksPerHalfSymbol[7] = {
 * Description: S_Table used for AES encription
 *****************************************************************************************
 */
-const uint8_t PROGMEM TinyLoRa::S_Table[16][16] = {
+const uint8_t PROGMEM SlimLoRa::S_Table[16][16] = {
     {0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76},
     {0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0},
     {0xB7, 0xFD, 0x93, 0x26, 0x36, 0x3F, 0xF7, 0xCC, 0x34, 0xA5, 0xE5, 0xF1, 0x71, 0xD8, 0x31, 0x15},
@@ -116,7 +116,7 @@ const uint8_t PROGMEM TinyLoRa::S_Table[16][16] = {
     {0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16}
 };
 
-void TinyLoRa::Init() {
+void SlimLoRa::Init() {
     uint8_t detect_optimize;
 
     // Sleep
@@ -162,7 +162,7 @@ void TinyLoRa::Init() {
 *               rx_tickstamp Listen until rx_tickstamp elapsed
 *****************************************************************************************
 */
-int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp) {
+int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp) {
     uint8_t modem_config_3, irq_flags, packet_length, read_length;
 
     // Wait for start time
@@ -258,7 +258,7 @@ int8_t TinyLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
 *               start_timer Wheter or not to start a timer for Rx delay
 *****************************************************************************************
 */
-void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer) {
+void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer) {
     uint8_t modem_config_3;
 
     // Switch RFM to standby
@@ -344,7 +344,7 @@ void TinyLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
 *               data    Data to be written
 *****************************************************************************************
 */
-inline void TinyLoRa::RfmWrite(uint8_t address, uint8_t data) {
+inline void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
     // Set NSS pin Low to start communication
     PRT_RFM_NSS &= ~(1 << PB_RFM_NSS);
 
@@ -366,7 +366,7 @@ inline void TinyLoRa::RfmWrite(uint8_t address, uint8_t data) {
 * Returns   : Value of the register
 *****************************************************************************************
 */
-inline uint8_t TinyLoRa::RfmRead(uint8_t address) {
+inline uint8_t SlimLoRa::RfmRead(uint8_t address) {
     uint8_t data;
 
     // Set NSS pin low to start SPI communication
@@ -389,7 +389,7 @@ inline uint8_t TinyLoRa::RfmRead(uint8_t address) {
 * Description : Function calculates the clock drift adjustment (+- 5%)
 *****************************************************************************************
 */
-inline uint32_t TinyLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol) {
+inline uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol) {
     // Clock drift
     uint32_t drift = delay * 5 / 100;
     delay -= drift;
@@ -408,7 +408,7 @@ inline uint32_t TinyLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t tick
 * Description : Function calculates the centered rx window offset
 *****************************************************************************************
 */
-inline int32_t TinyLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) {
+inline int32_t SlimLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) {
     const uint16_t ticks_per_symbol = 2 * ticks_per_half_symbol;
 
     uint8_t rx_symbols = ((2 * LORAWAN_RX_MIN_SYMBOLS - 8) * ticks_per_symbol + 2 * LORAWAN_RX_ERROR_TICKS + ticks_per_symbol - 1) / ticks_per_symbol;
@@ -425,7 +425,7 @@ inline int32_t TinyLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) 
 * Description : Function calculates the Rx delay for a given data rate
 *****************************************************************************************
 */
-uint32_t TinyLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
+uint32_t SlimLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
     uint16_t ticks_per_half_symbol;
     int32_t offset;
 
@@ -440,7 +440,7 @@ uint32_t TinyLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
 * Description : Function enables/disables the ADR mechanism
 *****************************************************************************************
 */
-void TinyLoRa::SetAdrEnabled(bool enabled) {
+void SlimLoRa::SetAdrEnabled(bool enabled) {
     mAdrEnabled = enabled;
 }
 
@@ -450,7 +450,7 @@ void TinyLoRa::SetAdrEnabled(bool enabled) {
 * Description : Function returns if the device joined a LoRaWAN network
 *****************************************************************************************
 */
-bool TinyLoRa::HasJoined() {
+bool SlimLoRa::HasJoined() {
     return mHasJoined;
 }
 
@@ -459,7 +459,7 @@ bool TinyLoRa::HasJoined() {
 * Description : Function contstructs a LoRaWAN Join-request packet and sends it
 *****************************************************************************************
 */
-int8_t TinyLoRa::Join() {
+int8_t SlimLoRa::Join() {
     uint8_t packet[1 + LORAWAN_JOIN_REQUEST_SIZE + 4];
     uint8_t packet_length;
 
@@ -519,7 +519,7 @@ int8_t TinyLoRa::Join() {
 * Description : Function validates the calculated 4-byte MIC against the received 4-byte MIC
 *****************************************************************************************
 */
-inline bool TinyLoRa::CheckMic(uint8_t *cmic, uint8_t *rmic) {
+inline bool SlimLoRa::CheckMic(uint8_t *cmic, uint8_t *rmic) {
     return cmic[0] == rmic[0] && cmic[1] == rmic[1]
             && cmic[2] == rmic[2] && cmic[3] == rmic[3];
 }
@@ -529,7 +529,7 @@ inline bool TinyLoRa::CheckMic(uint8_t *cmic, uint8_t *rmic) {
 * Description : Function processes a LoRaWAN 1.0 Join-accept message
 *****************************************************************************************
 */
-bool TinyLoRa::ProcessJoinAccept1_0(uint8_t *packet, uint8_t packet_length) {
+bool SlimLoRa::ProcessJoinAccept1_0(uint8_t *packet, uint8_t packet_length) {
     uint8_t buffer[16], mic[4];
     uint8_t packet_length_no_mic = packet_length - 4;
     uint16_t dev_nonce;
@@ -582,7 +582,7 @@ bool TinyLoRa::ProcessJoinAccept1_0(uint8_t *packet, uint8_t packet_length) {
 * Description : Function processes a LoRaWAN 1.1 Join-accept message
 *****************************************************************************************
 */
-bool TinyLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t packet_length) {
+bool SlimLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t packet_length) {
     uint8_t buffer[40] = { 0 }, mic[4];
     uint8_t packet_length_no_mic = packet_length - 4;
     uint16_t dev_nonce;
@@ -704,7 +704,7 @@ bool TinyLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t packet_length) {
 * Arguments   : window Index of the receive window [1,2]
 *****************************************************************************************
 */
-int8_t TinyLoRa::ProcessJoinAccept(uint8_t window) {
+int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     int8_t result;
     uint32_t rx_delay;
 
@@ -826,7 +826,7 @@ end:
 *               f_options_length Length of the frame options section
 *****************************************************************************************
 */
-void TinyLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
+void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
     uint8_t new_data_rate;
 
     if (f_options_length == 0) {
@@ -907,7 +907,7 @@ void TinyLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
 * Arguments   : window Receive window index
 *****************************************************************************************
 */
-int8_t TinyLoRa::ProcessDownlink(uint8_t window) {
+int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
     int8_t result;
     uint32_t rx_delay;
 
@@ -1031,7 +1031,7 @@ end:
 *               payload_length nuber of bytes to be transmitted
 *****************************************************************************************
 */
-void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length) {
+void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length) {
     uint8_t packet[64];
     uint8_t packet_length = 0;
 
@@ -1122,7 +1122,7 @@ void TinyLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
 *               direction Direction of message
 *****************************************************************************************
 */
-void TinyLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned int frame_counter, uint8_t direction) {
+void SlimLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned int frame_counter, uint8_t direction) {
     uint8_t block_count = 0;
     uint8_t incomplete_block_size = 0;
 
@@ -1209,7 +1209,7 @@ void TinyLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
 *               data_length number of bytes to process
 *****************************************************************************************
 */
-void TinyLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_block, uint8_t *final_mic, uint8_t data_length) {
+void SlimLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_block, uint8_t *final_mic, uint8_t data_length) {
     uint8_t key1[16] = {0};
     uint8_t key2[16] = {0};
 
@@ -1307,7 +1307,7 @@ void TinyLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_
 *               direction of msg is up
 *****************************************************************************************
 */
-void TinyLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction) {
+void SlimLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction) {
     uint8_t block_b[16];
 #if OTAA
     uint8_t dev_addr[4], nwk_s_key[16];
@@ -1360,7 +1360,7 @@ void TinyLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t da
 *               *key2 pointer ot Key2
 *****************************************************************************************
 */
-void TinyLoRa::GenerateKeys(const uint8_t *key, uint8_t *key1, uint8_t *key2) {
+void SlimLoRa::GenerateKeys(const uint8_t *key, uint8_t *key1, uint8_t *key2) {
     uint8_t msb_key;
 
     // Encrypt the zeros in key1 with the NwkSkey
@@ -1403,7 +1403,7 @@ void TinyLoRa::GenerateKeys(const uint8_t *key, uint8_t *key1, uint8_t *key2) {
     }
 }
 
-void TinyLoRa::ShiftLeftData(uint8_t *data) {
+void SlimLoRa::ShiftLeftData(uint8_t *data) {
     uint8_t overflow = 0;
 
     for (uint8_t i = 0; i < 16; i++) {
@@ -1424,7 +1424,7 @@ void TinyLoRa::ShiftLeftData(uint8_t *data) {
     }
 }
 
-void TinyLoRa::XorData(uint8_t *new_data, uint8_t *old_data) {
+void SlimLoRa::XorData(uint8_t *new_data, uint8_t *old_data) {
     for (uint8_t i = 0; i < 16; i++) {
         new_data[i] = new_data[i] ^ old_data[i];
     }
@@ -1436,7 +1436,7 @@ void TinyLoRa::XorData(uint8_t *new_data, uint8_t *old_data) {
 * Description  :
 *****************************************************************************************
 */
-void TinyLoRa::AesEncrypt(const uint8_t *key, uint8_t *data) {
+void SlimLoRa::AesEncrypt(const uint8_t *key, uint8_t *data) {
     uint8_t round;
     uint8_t round_key[16];
     uint8_t state[4][4];
@@ -1506,7 +1506,7 @@ void TinyLoRa::AesEncrypt(const uint8_t *key, uint8_t *data) {
 * Description :
 *****************************************************************************************
 */
-void TinyLoRa::AesAddRoundKey(uint8_t *round_key, uint8_t (*state)[4]) {
+void SlimLoRa::AesAddRoundKey(uint8_t *round_key, uint8_t (*state)[4]) {
     for (uint8_t column = 0; column < 4; column++) {
         for (uint8_t row = 0; row < 4; row++) {
             state[row][column] ^= round_key[row + (column << 2)];
@@ -1520,7 +1520,7 @@ void TinyLoRa::AesAddRoundKey(uint8_t *round_key, uint8_t (*state)[4]) {
 * Description :
 *****************************************************************************************
 */
-uint8_t TinyLoRa::AesSubByte(uint8_t byte) {
+uint8_t SlimLoRa::AesSubByte(uint8_t byte) {
     // uint8_t S_Row, S_Collum;
     // uint8_t S_Byte;
 
@@ -1538,7 +1538,7 @@ uint8_t TinyLoRa::AesSubByte(uint8_t byte) {
 * Description :
 *****************************************************************************************
 */
-void TinyLoRa::AesShiftRows(uint8_t (*state)[4]) {
+void SlimLoRa::AesShiftRows(uint8_t (*state)[4]) {
     uint8_t buffer;
 
     // Store firt byte in buffer
@@ -1569,7 +1569,7 @@ void TinyLoRa::AesShiftRows(uint8_t (*state)[4]) {
 * Description :
 *****************************************************************************************
 */
-void TinyLoRa::AesMixCollums(uint8_t (*state)[4]) {
+void SlimLoRa::AesMixCollums(uint8_t (*state)[4]) {
     uint8_t a[4], b[4];
 
     for (uint8_t column = 0; column < 4; column++) {
@@ -1595,7 +1595,7 @@ void TinyLoRa::AesMixCollums(uint8_t (*state)[4]) {
 * Description :
 *****************************************************************************************
 */
-void TinyLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
+void SlimLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
     uint8_t tmp[4];
 
     // Calculate rcon
@@ -1637,7 +1637,7 @@ uint16_t eeprom_lw_rx_frame_counter EEMEM = 0;
 uint8_t eeprom_lw_rx2_data_rate EEMEM = 0;
 
 // TxFrameCounter
-inline uint16_t TinyLoRa::GetTxFrameCounter() {
+inline uint16_t SlimLoRa::GetTxFrameCounter() {
     uint16_t value = eeprom_read_word(&eeprom_lw_tx_frame_counter);
 
     if (value == 0xFFFF) {
@@ -1647,12 +1647,12 @@ inline uint16_t TinyLoRa::GetTxFrameCounter() {
     return value;
 }
 
-inline void TinyLoRa::SetTxFrameCounter(uint16_t count) {
+inline void SlimLoRa::SetTxFrameCounter(uint16_t count) {
     eeprom_write_word(&eeprom_lw_tx_frame_counter, count);
 }
 
 // RxFrameCounter
-inline uint16_t TinyLoRa::GetRxFrameCounter() {
+inline uint16_t SlimLoRa::GetRxFrameCounter() {
     uint16_t value = eeprom_read_word(&eeprom_lw_rx_frame_counter);
 
     if (value == 0xFFFF) {
@@ -1662,12 +1662,12 @@ inline uint16_t TinyLoRa::GetRxFrameCounter() {
     return value;
 }
 
-inline void TinyLoRa::SetRxFrameCounter(uint16_t count) {
+inline void SlimLoRa::SetRxFrameCounter(uint16_t count) {
     eeprom_write_word(&eeprom_lw_rx_frame_counter, count);
 }
 
 // Rx2DataRate
-inline uint8_t TinyLoRa::GetRx2DataRate() {
+inline uint8_t SlimLoRa::GetRx2DataRate() {
     uint8_t value = eeprom_read_byte(&eeprom_lw_rx2_data_rate);
 
     if (value == 0xFF) {
@@ -1682,7 +1682,7 @@ inline uint8_t TinyLoRa::GetRx2DataRate() {
     return value;
 }
 
-inline void TinyLoRa::SetRx2DataRate(uint8_t value) {
+inline void SlimLoRa::SetRx2DataRate(uint8_t value) {
     eeprom_write_byte(&eeprom_lw_rx2_data_rate, value);
 }
 
@@ -1696,16 +1696,16 @@ uint8_t eeprom_lw_s_nwk_s_int_key[16] EEMEM;
 uint8_t eeprom_lw_nwk_s_enc_key[16] EEMEM;
 
 // DevAddr
-inline void TinyLoRa::GetDevAddr(uint8_t *dev_addr) {
+inline void SlimLoRa::GetDevAddr(uint8_t *dev_addr) {
     eeprom_read_block(dev_addr, eeprom_lw_dev_addr, 4);
 }
 
-inline void TinyLoRa::SetDevAddr(uint8_t *dev_addr) {
+inline void SlimLoRa::SetDevAddr(uint8_t *dev_addr) {
     eeprom_write_block(dev_addr, eeprom_lw_dev_addr, 4);
 }
 
 // DevNonce
-inline uint16_t TinyLoRa::GetDevNonce() {
+inline uint16_t SlimLoRa::GetDevNonce() {
     uint16_t value = eeprom_read_word(&eeprom_lw_dev_nonce);
 
     if (value == 0xFFFF) {
@@ -1715,12 +1715,12 @@ inline uint16_t TinyLoRa::GetDevNonce() {
     return value;
 }
 
-inline void TinyLoRa::SetDevNonce(uint16_t dev_nonce) {
+inline void SlimLoRa::SetDevNonce(uint16_t dev_nonce) {
     eeprom_write_word(&eeprom_lw_dev_nonce, dev_nonce);
 }
 
 // JoinNonce
-inline uint32_t TinyLoRa::GetJoinNonce() {
+inline uint32_t SlimLoRa::GetJoinNonce() {
     uint32_t value = eeprom_read_dword(&eeprom_lw_join_nonce);
 
     if (value == 0xFFFFFFFF) {
@@ -1730,43 +1730,43 @@ inline uint32_t TinyLoRa::GetJoinNonce() {
     return value;
 }
 
-inline void TinyLoRa::SetJoinNonce(uint32_t join_nonce) {
+inline void SlimLoRa::SetJoinNonce(uint32_t join_nonce) {
     eeprom_write_dword(&eeprom_lw_join_nonce, join_nonce);
 }
 
 // AppSKey
-inline void TinyLoRa::GetAppSKey(uint8_t *key) {
+inline void SlimLoRa::GetAppSKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_app_s_key, 16);
 }
 
-inline void TinyLoRa::SetAppSKey(uint8_t *key) {
+inline void SlimLoRa::SetAppSKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_app_s_key, 16);
 }
 
 // FNwkSIntKey
-inline void TinyLoRa::GetFNwkSIntKey(uint8_t *key) {
+inline void SlimLoRa::GetFNwkSIntKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_f_nwk_s_int_key, 16);
 }
 
-inline void TinyLoRa::SetFNwkSIntKey(uint8_t *key) {
+inline void SlimLoRa::SetFNwkSIntKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_f_nwk_s_int_key, 16);
 }
 
 // SNwkSIntKey
-inline void TinyLoRa::GetSNwkSIntKey(uint8_t *key) {
+inline void SlimLoRa::GetSNwkSIntKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_s_nwk_s_int_key, 16);
 }
 
-inline void TinyLoRa::SetSNwkSIntKey(uint8_t *key) {
+inline void SlimLoRa::SetSNwkSIntKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_s_nwk_s_int_key, 16);
 }
 
 // NwkSEncKey
-inline void TinyLoRa::GetNwkSEncKey(uint8_t *key) {
+inline void SlimLoRa::GetNwkSEncKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_nwk_s_enc_key, 16);
 }
 
-inline void TinyLoRa::SetNwkSEncKey(uint8_t *key) {
+inline void SlimLoRa::SetNwkSEncKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_nwk_s_enc_key, 16);
 }
 #endif // OTAA

@@ -28,7 +28,7 @@
 #include "pins.h"
 #include "ports.h"
 #include "tinyi2cmaster.h"
-#include "tinylora.h"
+#include "slimlora.h"
 #include "tinyspi.h"
 #include "utils.h"
 
@@ -143,7 +143,7 @@ int main() {
     uint8_t payload[6], payload_length;
     uint8_t fport, status;
     uint16_t voltage, temperature, humidity;
-    TinyLoRa lora;
+    SlimLoRa lora;
 #if ENABLE_DHT22
     DHT22 dht22;
 #elif ENABLE_SI7021

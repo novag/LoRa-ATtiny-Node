@@ -30,7 +30,7 @@ const char STR_BOOTED[] PROGMEM = "Booted";
 const char STR_JOINING[] PROGMEM = "Joining";
 const char STR_JOINED[] PROGMEM = "Joined";
 const char STR_SENDING[] PROGMEM = "Sending";
-// tinylora.cpp
+// slimlora.cpp
 const char STR_TXDONE[] PROGMEM = "RSP: TxDone";
 const char STR_RESULT[] PROGMEM = "Result: ";
 const char STR_PJA_PLEN[] PROGMEM = "PJA: packet_length = ";
@@ -48,7 +48,7 @@ PGM_P const DEBUG_STRINGS[] PROGMEM = {
     STR_JOINING,
     STR_JOINED,
     STR_SENDING,
-    // tinylora.cpp
+    // slimlora.cpp
     STR_TXDONE,
     STR_RESULT,
     STR_PJA_PLEN,
