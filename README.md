@@ -19,6 +19,7 @@ It also *does not* enforce a duty cycle. This must be ensured by the user.
 - [Example Program](#example-sketches)
 - [Timing](#timing)
 - [Release History](#release-history)
+- [Sample Board](#sample-board)
 - [Trademark Acknowledgements](#trademark-acknowledgements)
 - [License](#license)
 
@@ -103,6 +104,10 @@ Only select a single device in the configuration file. Otherwhise the first sele
 ## Release History
 
 - V0.1.0 Initial release.
+
+## Sample Board
+
+<img src="https://raw.githubusercontent.com/novag/LoRa-ATtiny-Node/master/img/front.jpg" alt="front" width="302" height="403"> <img src="https://raw.githubusercontent.com/novag/LoRa-ATtiny-Node/master/img/side.jpg" alt="side" width="302" height="403">
 
 ## Contributions
 
