@@ -979,12 +979,10 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
 #endif // OTAA
 
     // Check MIC
-    //CalculateMessageMic(packet, mic, packet_length - 4, frame_counter, LORAWAN_DIRECTION_DOWN);
-    //debug_bytes("mic: ", mic, 4);
-    //if (packet[packet_length - 4] != mic[0] || packet[packet_length - 3] != mic[1]
-    //        || packet[packet_length - 2] != mic[2] || packet[packet_length - 1] != mic[3]) {
-    //    return LORAWAN_ERROR_INVALID_MIC;
-    //}
+    CalculateMessageMic(packet, mic, packet_length - 4, frame_counter, LORAWAN_DIRECTION_DOWN);
+    if (!CheckMic(mic, &packet[packet_length - 4])) {
+        return LORAWAN_ERROR_INVALID_MIC;
+    }
 
     // Saves memory cycles, we could loose more than 3 packets if we don't receive a packet at all
     mRxFrameCounter = frame_counter + 1;
@@ -1106,6 +1104,19 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
 
     mChannel = mPseudoByte & 0x03;
     RfmSendPacket(packet, packet_length, mChannel, mDataRate, true);
+}
+
+/*
+*****************************************************************************************
+* Description : Function handles sending data and downlink windows
+*
+* Arguments   : port FPort of the frame
+*               *payload pointer to the array of data that will be transmitted
+*               payload_length nuber of bytes to be transmitted
+*****************************************************************************************
+*/
+void SlimLoRa::SendData(uint8_t fport, uint8_t *payload, uint8_t payload_length) {
+    Transmit(fport, payload, payload_length);
 
     if (ProcessDownlink(1)) {
         ProcessDownlink(2);

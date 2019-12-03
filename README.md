@@ -51,17 +51,17 @@ The library has some support for LoRaWAN 1.1 which is not usable yet.
 ## Requirements and Limitations
 
 ### No event handling
-This library does not implement any kind of event handling. A call to the Join and Transmit methods will block for several seconds until the end of the second receive window.
+This library does not implement any kind of event handling. A call to the Join and SendData methods will block for several seconds until the end of the second receive window.
 
 ### Timer0
-SlimLoRa uses the Timer0 on every call of the Join or Transmit methods. Between these calls Timer0 can be used by the user for other purposes.
+SlimLoRa uses the Timer0 on every call of the Join or SendData methods. Between these calls Timer0 can be used by the user for other purposes.
 See also timing.h and timing.c.
 
 ### Memory requirements
-SlimLoRa uses about 348 bytes of SRAM for its stack and about 64 bytes for global symbols.
+SlimLoRa uses about 350 bytes of SRAM for its stack and about 64 bytes for global symbols.
 
-The current project has a maximum total SRAM usage of 460 bytes.
-On an ATtiny85 you should never call into the Join and Transmit methods from deeply nested functions. Analyze and profile your program!
+The current project has a maximum total SRAM usage of about 460 bytes.
+On an ATtiny85 you should never call into the Join and SendData methods from deeply nested functions. Analyze and profile your program!
 
 ## Configuration
 

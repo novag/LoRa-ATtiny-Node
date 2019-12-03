@@ -137,7 +137,7 @@ class SlimLoRa {
     void Init(void);
     bool HasJoined(void);
     int8_t Join();
-    void Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length);
+    void SendData(uint8_t fport, uint8_t *payload, uint8_t payload_length);
     void SetAdrEnabled(bool enabled);
 
   private:
@@ -170,6 +170,7 @@ class SlimLoRa {
     int8_t ProcessJoinAccept(uint8_t window);
     void ProcessFrameOptions(uint8_t *options, uint8_t f_options_length);
     int8_t ProcessDownlink(uint8_t window);
+    void Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length);
     void EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned int frame_counter, uint8_t direction);
     void CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_block, uint8_t *final_mic, uint8_t data_length);
     void CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction);

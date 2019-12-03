@@ -273,7 +273,7 @@ int main() {
             SPI.SetDataMode(SPI_MODE0);
             SPI.Init();
 #endif
-            lora.Transmit(fport, payload, payload_length);
+            lora.SendData(fport, payload, payload_length);
 #if ENABLE_I2C_MASTER
             SPI.End();
 #endif
