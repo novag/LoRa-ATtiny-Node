@@ -77,6 +77,9 @@ void setup_watchdog() {
     sei();
 }
 
+/**
+ * Disables ADC for power saving and goes to sleep.
+ */
 void sleep() {
     // Disabling ADC saves ~230uA
     CLEARBIT(ADCSRA, ADEN);
@@ -94,9 +97,10 @@ void sleep() {
     SETBIT(ADCSRA, ADEN);
 }
 
-/*
- * Read voltage of the rail (Vcc)
- * output mV (2 bytes)
+/**
+ * Read voltage of the rail (VCC).
+ *
+ * @return Voltage in mV (2 bytes).
  */
 uint16_t read_voltage() {
     uint8_t low, high;

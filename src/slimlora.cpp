@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2018, 2019 Hendrik Hagendorn
- * Copyright (c) 2015, 2016 Ideetron B.V.
+ * Copyright (c) 2018-2021 Hendrik Hagendorn
+ * Copyright (c) 2015-2016 Ideetron B.V. - AES routines
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -25,7 +25,6 @@
 #include <util/atomic.h>
 #include <util/delay.h>
 
-
 #include "config.h"
 #include "pins.h"
 #include "slimlora.h"
@@ -44,11 +43,7 @@ extern const uint8_t DevAddr[4];
 
 extern TinySPI SPI;
 
-/*
-*****************************************************************************************
-* Description: Frequency band Europe
-*****************************************************************************************
-*/
+// Frequency band for europe
 const uint8_t PROGMEM SlimLoRa::FrequencyTable[9][3] = {
     { 0xD9, 0x06, 0x8B }, // Channel 0 868.100 MHz / 61.035 Hz = 14222987 = 0xD9068B
     { 0xD9, 0x13, 0x58 }, // Channel 1 868.300 MHz / 61.035 Hz = 14226264 = 0xD91358
@@ -61,11 +56,7 @@ const uint8_t PROGMEM SlimLoRa::FrequencyTable[9][3] = {
     { 0xD9, 0x61, 0xBE }  // Downlink  869.525 MHz / 61.035 Hz = 14246334 = 0xD961BE
 };
 
-/*
-*****************************************************************************************
-* Description: Data rate
-*****************************************************************************************
-*/
+// Data rate
 const uint8_t PROGMEM SlimLoRa::DataRateTable[7][3] = {
     // bw    sf   agc
     { 0x72, 0xC4, 0x0C }, // SF12BW125
@@ -77,11 +68,7 @@ const uint8_t PROGMEM SlimLoRa::DataRateTable[7][3] = {
     { 0x82, 0x74, 0x04 }  // SF7BW250
 };
 
-/*
-*****************************************************************************************
-* Description: Half symbol times
-*****************************************************************************************
-*/
+// Half symbol times
 const uint16_t PROGMEM SlimLoRa::DRTicksPerHalfSymbol[7] = {
     ((128 << 7) * TICKS_PER_SECOND + 500000) / 1000000, // SF12BW125
     ((128 << 6) * TICKS_PER_SECOND + 500000) / 1000000, // SF11BW125
@@ -92,11 +79,7 @@ const uint16_t PROGMEM SlimLoRa::DRTicksPerHalfSymbol[7] = {
     ((128 << 1) * TICKS_PER_SECOND + 500000) / 1000000  // SF7BW250
 };
 
-/*
-*****************************************************************************************
-* Description: S_Table used for AES encription
-*****************************************************************************************
-*/
+// S_Table for AES encryption
 const uint8_t PROGMEM SlimLoRa::S_Table[16][16] = {
     {0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76},
     {0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0},
@@ -151,17 +134,16 @@ void SlimLoRa::Init() {
     mRx2DataRate = GetRx2DataRate();
 }
 
-/*
-*****************************************************************************************
-* Description : Function for receiving a packet using the RFM
-*
-* Arguments   : *packet Pointer to Rx packet array
-*               packet_max_length Maximum number of bytes to read from Rx packet
-*               channel The FrequencyTable channel index to listen on
-*               dri The DataRateTable index to listen on
-*               rx_tickstamp Listen until rx_tickstamp elapsed
-*****************************************************************************************
-*/
+/**
+ * Function for receiving a packet using the RFM
+ *
+ * @param packet Pointer to RX packet array.
+ * @param packet_max_length Maximum number of bytes to read from RX packet.
+ * @param channel The frequency table channel index.
+ * @param dri The data rate table index.
+ * @param rx_tickstamp Listen until rx_tickstamp elapsed.
+ * @return The packet length or an error code.
+ */
 int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp) {
     uint8_t modem_config_3, irq_flags, packet_length, read_length;
 
@@ -247,17 +229,15 @@ int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
     return RFM_ERROR_UNKNOWN;
 }
 
-/*
-*****************************************************************************************
-* Description : Function for sending a packet with the RFM
-*
-* Arguments   : *packet Pointer to array with data to be send
-*               packet_length Length of the packet to send
-*               channel The FrequencyTable channel index
-*               dri The DataRateTable index
-*               start_timer Wheter or not to start a timer for Rx delay
-*****************************************************************************************
-*/
+/**
+ * Senda a packet using the RFM.
+ *
+ * @param packet Pointer to TX packet array.
+ * @param packet_length Length of the TX packet.
+ * @param channel The frequency table channel index.
+ * @param dri The data rate table index.
+ * @param start_timer Wheter or not to start a timer for RX delay.
+ */
 void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer) {
     uint8_t modem_config_3;
 
@@ -335,15 +315,12 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
     mAdrAckCounter++;
 }
 
-/*
-*****************************************************************************************
-* Description : Funtion that writes a register from the RFM
-*
-* Arguments   : address Address of register to be written
-*
-*               data    Data to be written
-*****************************************************************************************
-*/
+/**
+ * Writes a value to a register of the RFM.
+ *
+ * @param address Address of the register to be written.
+ * @param data Data to be written.
+ */
 inline void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
     // Set NSS pin Low to start communication
     PRT_RFM_NSS &= ~(1 << PB_RFM_NSS);
@@ -357,15 +334,12 @@ inline void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
     PRT_RFM_NSS |= (1 << PB_RFM_NSS);
 }
 
-/*
-*****************************************************************************************
-* Description : Funtion that reads a register from the RFM and returns the value
-*
-* Arguments   : address Address of register to be read
-*
-* Returns   : Value of the register
-*****************************************************************************************
-*/
+/**
+ * Reads a value from a register of the RFM.
+ *
+ * @param address Address of the register to be read.
+ * @return The value of the register.
+ */
 inline uint8_t SlimLoRa::RfmRead(uint8_t address) {
     uint8_t data;
 
@@ -384,11 +358,9 @@ inline uint8_t SlimLoRa::RfmRead(uint8_t address) {
     return data;
 }
 
-/*
-*****************************************************************************************
-* Description : Function calculates the clock drift adjustment (+- 5%)
-*****************************************************************************************
-*/
+/**
+ * Calculates the clock drift adjustment(+-5%).
+ */
 inline uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol) {
     // Clock drift
     uint32_t drift = delay * 5 / 100;
@@ -403,11 +375,9 @@ inline uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t tick
     return delay;
 }
 
-/*
-*****************************************************************************************
-* Description : Function calculates the centered rx window offset
-*****************************************************************************************
-*/
+/**
+ * Calculates the centered RX window offest.
+ */
 inline int32_t SlimLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) {
     const uint16_t ticks_per_symbol = 2 * ticks_per_half_symbol;
 
@@ -420,11 +390,11 @@ inline int32_t SlimLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) 
     return (8 - rx_symbols) * ticks_per_half_symbol - LORAWAN_RX_MARGIN_TICKS;
 }
 
-/*
-*****************************************************************************************
-* Description : Function calculates the Rx delay for a given data rate
-*****************************************************************************************
-*/
+/**
+ * Calculates the RX delay for a given data rate.
+ *
+ * @return The RX delay in ticks.
+ */
 uint32_t SlimLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
     uint16_t ticks_per_half_symbol;
     int32_t offset;
@@ -435,30 +405,26 @@ uint32_t SlimLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
     return CaluclateDriftAdjustment(delay + offset, ticks_per_half_symbol);
 }
 
-/*
-*****************************************************************************************
-* Description : Function enables/disables the ADR mechanism
-*****************************************************************************************
-*/
+/**
+ * Enables/disables the ADR mechanism.
+ */
 void SlimLoRa::SetAdrEnabled(bool enabled) {
     mAdrEnabled = enabled;
 }
 
 #if OTAA
-/*
-*****************************************************************************************
-* Description : Function returns if the device joined a LoRaWAN network
-*****************************************************************************************
-*/
+/**
+ * Check if the device joined a LoRaWAN network.
+ */
 bool SlimLoRa::HasJoined() {
     return mHasJoined;
 }
 
-/*
-*****************************************************************************************
-* Description : Function contstructs a LoRaWAN Join-request packet and sends it
-*****************************************************************************************
-*/
+/**
+ * Constructs a LoRaWAN JoinRequest packet and sends it.
+ *
+ * @return 0 or an error code.
+ */
 int8_t SlimLoRa::Join() {
     uint8_t packet[1 + LORAWAN_JOIN_REQUEST_SIZE + 4];
     uint8_t packet_length;
@@ -514,21 +480,24 @@ int8_t SlimLoRa::Join() {
     return ProcessJoinAccept(2);
 }
 
-/*
-*****************************************************************************************
-* Description : Function validates the calculated 4-byte MIC against the received 4-byte MIC
-*****************************************************************************************
-*/
+/**
+ * Validates the calculated 4-byte MIC against the received 4-byte MIC.
+ *
+ * @param cmic Calculated 4-byte MIC.
+ * @param rmic Received 4-byte MIC.
+ */
 inline bool SlimLoRa::CheckMic(uint8_t *cmic, uint8_t *rmic) {
     return cmic[0] == rmic[0] && cmic[1] == rmic[1]
             && cmic[2] == rmic[2] && cmic[3] == rmic[3];
 }
 
-/*
-*****************************************************************************************
-* Description : Function processes a LoRaWAN 1.0 Join-accept message
-*****************************************************************************************
-*/
+/**
+ * Processes LoRaWAN 1.0 JoinAccept message.
+ *
+ * @param packet Received JoinAccept packet bytes.
+ * @param packet_length Length of the received packet.
+ * @return True if MIC validation succeeded, else false.
+ */
 bool SlimLoRa::ProcessJoinAccept1_0(uint8_t *packet, uint8_t packet_length) {
     uint8_t buffer[16], mic[4];
     uint8_t packet_length_no_mic = packet_length - 4;
@@ -577,11 +546,13 @@ bool SlimLoRa::ProcessJoinAccept1_0(uint8_t *packet, uint8_t packet_length) {
 }
 
 #if LORAWAN1_1
-/*
-*****************************************************************************************
-* Description : Function processes a LoRaWAN 1.1 Join-accept message
-*****************************************************************************************
-*/
+/**
+ * Processes a LoRaWAN 1.1 JoiNAccept message.
+ *
+ * @param packet Received JoinAccept packet bytes.
+ * @param packet_length Length of the received packet.
+ * @return True if MIC validation succeeded, else false.
+ */
 bool SlimLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t packet_length) {
     uint8_t buffer[40] = { 0 }, mic[4];
     uint8_t packet_length_no_mic = packet_length - 4;
@@ -697,13 +668,12 @@ bool SlimLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t packet_length) {
 }
 #endif // LORAWAN1_1
 
-/*
-*****************************************************************************************
-* Description : Function listens and processes a LoRaWAN Join-accept message
-*
-* Arguments   : window Index of the receive window [1,2]
-*****************************************************************************************
-*/
+/**
+ * Listens for and processes a LoRaWAN JoinAccept message.
+ *
+ * @param window Index of the receive window [1,2].
+ * @return 0 if successful, else error code.
+ */
 int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     int8_t result;
     uint32_t rx_delay;
@@ -818,14 +788,12 @@ end:
 }
 #endif // OTAA
 
-/*
-*****************************************************************************************
-* Description : Function processes frame options of downlink packets
-*
-* Arguments   : options Pointer to the start of the frame options section
-*               f_options_length Length of the frame options section
-*****************************************************************************************
-*/
+/**
+ * Processes frame options of downlink packets.
+ *
+ * @param options Pointer to the start of the frame options section.
+ * @param f_options Length of the frame options section.
+ */
 void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
     uint8_t new_data_rate;
 
@@ -900,13 +868,12 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
     }
 }
 
-/*
-*****************************************************************************************
-* Description : Function listens for and processes LoRaWAN downlink packets
-*
-* Arguments   : window Receive window index
-*****************************************************************************************
-*/
+/**
+ * Listens for and processes LoRaWAN downlink packets.
+ *
+ * @param window Receive window index [1,2].
+ * @return 0 if successful, else error code.
+ */
 int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
     int8_t result;
     uint32_t rx_delay;
@@ -1020,15 +987,13 @@ end:
     return result;
 }
 
-/*
-*****************************************************************************************
-* Description : Function contstructs a LoRaWAN packet and sends it
-*
-* Arguments   : port FPort of the frame
-*               *payload pointer to the array of data that will be transmitted
-*               payload_length nuber of bytes to be transmitted
-*****************************************************************************************
-*/
+/**
+ * Constructs a LoRaWAN packet and transmits it.
+ *
+ * @param port FPort of the frame.
+ * @param payload Pointer to the array of data to be transmitted.
+ * @param payload_length Length of the data to be transmitted.
+ */
 void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length) {
     uint8_t packet[64];
     uint8_t packet_length = 0;
@@ -1106,15 +1071,13 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     RfmSendPacket(packet, packet_length, mChannel, mDataRate, true);
 }
 
-/*
-*****************************************************************************************
-* Description : Function handles sending data and downlink windows
-*
-* Arguments   : port FPort of the frame
-*               *payload pointer to the array of data that will be transmitted
-*               payload_length nuber of bytes to be transmitted
-*****************************************************************************************
-*/
+/**
+ * Sends data and listens for downlink messages on RX1 and RX2.
+ *
+ * @param fport FPort of the frame.
+ * @param payload Pointer to the array of data to be transmitted.
+ * @param payload_length Length of data to be transmitted.
+ */
 void SlimLoRa::SendData(uint8_t fport, uint8_t *payload, uint8_t payload_length) {
     Transmit(fport, payload, payload_length);
 
@@ -1123,16 +1086,17 @@ void SlimLoRa::SendData(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     }
 }
 
-/*
-*****************************************************************************************
-* Description : Function used to encrypt and decrypt the data in a LoRaWAN data message
-*
-* Arguments   : *payload pointer to the data to de/encrypt
-*               payload_length number of bytes to process
-*               frame_counter Frame counter of upstream frames
-*               direction Direction of message
-*****************************************************************************************
-*/
+/**
+ * Encrypts/Decrypts the payload of a LoRaWAN data message.
+ *
+ * Decryption is performed the same way as encryption as the network server 
+ * conveniently uses AES decryption for encrypting download payloads.
+ *
+ * @param payload Pointer to the data to encrypt or decrypt Address of the register to be written.
+ * @param payload_length Number of bytes to process.
+ * @param frame_counter Frame counter for upstream frames.
+ * @param direction Direction of message.
+ */
 void SlimLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned int frame_counter, uint8_t direction) {
     uint8_t block_count = 0;
     uint8_t incomplete_block_size = 0;
@@ -1209,17 +1173,15 @@ void SlimLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
     }
 }
 
-/*
-*****************************************************************************************
-* Description : Function used to calculate an AES MIC of given data and key
-*
-* Arguments   : *key 16 bytes key to use for aes mic
-*               *data pointer to the data to process
-*               *initial_block pointer to an inital 16 byte block
-*               *final_mic 4 byte array for final MIC output
-*               data_length number of bytes to process
-*****************************************************************************************
-*/
+/**
+ * Calculates an AES MIC of given data using a key.
+ *
+ * @param key 16-byte long key.
+ * @param data Pointer to the data to process.
+ * @param initial_block Pointer to an initial 16-byte block.
+ * @param final_mic 4-byte array for final MIC output.
+ * @param data_length Number of bytes to process.
+ */
 void SlimLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_block, uint8_t *final_mic, uint8_t data_length) {
     uint8_t key1[16] = {0};
     uint8_t key2[16] = {0};
@@ -1307,17 +1269,15 @@ void SlimLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_
     mPseudoByte = final_mic[3];
 }
 
-/*
-*****************************************************************************************
-* Description : Function used to calculate the AES MIC of a LoRaWAN message
-*
-* Arguments   : *data pointer to the data to process
-*               final_mic 4 byte array for final MIC output
-*               data_length number of bytes to process
-*               frame_counter  Frame counter of upstream frames
-*               direction of msg is up
-*****************************************************************************************
-*/
+/**
+ * Calculates an AES MIC of a LoRaWAN message.
+ *
+ * @param data Pointer to the data to process.
+ * @param final_mic 4-byte array for final MIC output.
+ * @param data_length Number of bytes to process.
+ * @param frame_counter Frame counter for uplink frames.
+ * @param direction Number of message.
+ */
 void SlimLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction) {
     uint8_t block_b[16];
 #if OTAA
@@ -1363,14 +1323,13 @@ void SlimLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t da
 #endif // OTAA
 }
 
-/*
-*****************************************************************************************
-* Description : Function used to generate keys for the MIC calculation
-*
-* Arguments   : *key1 pointer to Key1
-*               *key2 pointer ot Key2
-*****************************************************************************************
-*/
+/**
+ * Generate keys for MIC calculation.
+ *
+ * @param key .
+ * @param key1 Pointer to key 1.
+ * @param key2 Pointer to key 2.
+ */
 void SlimLoRa::GenerateKeys(const uint8_t *key, uint8_t *key1, uint8_t *key2) {
     uint8_t msb_key;
 
@@ -1441,12 +1400,12 @@ void SlimLoRa::XorData(uint8_t *new_data, uint8_t *old_data) {
     }
 }
 
-/*
-*****************************************************************************************
-* Title        : AesEncrypt
-* Description  :
-*****************************************************************************************
-*/
+/**
+ * AES encrypts data with 128 bit key.
+ *
+ * @param key 128 bit key.
+ * @param data Plaintext to encrypt.
+ */
 void SlimLoRa::AesEncrypt(const uint8_t *key, uint8_t *data) {
     uint8_t round;
     uint8_t round_key[16];
@@ -1511,12 +1470,6 @@ void SlimLoRa::AesEncrypt(const uint8_t *key, uint8_t *data) {
     }
 }
 
-/*
-*****************************************************************************************
-* Title       : AesAdd_Round_Key
-* Description :
-*****************************************************************************************
-*/
 void SlimLoRa::AesAddRoundKey(uint8_t *round_key, uint8_t (*state)[4]) {
     for (uint8_t column = 0; column < 4; column++) {
         for (uint8_t row = 0; row < 4; row++) {
@@ -1525,12 +1478,6 @@ void SlimLoRa::AesAddRoundKey(uint8_t *round_key, uint8_t (*state)[4]) {
     }
 }
 
-/*
-*****************************************************************************************
-* Title       : AesSub_Byte
-* Description :
-*****************************************************************************************
-*/
 uint8_t SlimLoRa::AesSubByte(uint8_t byte) {
     // uint8_t S_Row, S_Collum;
     // uint8_t S_Byte;
@@ -1543,12 +1490,6 @@ uint8_t SlimLoRa::AesSubByte(uint8_t byte) {
     return pgm_read_byte(&(S_Table[((byte >> 4) & 0x0F)][((byte >> 0) & 0x0F)]));
 }
 
-/*
-*****************************************************************************************
-* Title       : AesShift_Rows
-* Description :
-*****************************************************************************************
-*/
 void SlimLoRa::AesShiftRows(uint8_t (*state)[4]) {
     uint8_t buffer;
 
@@ -1574,12 +1515,6 @@ void SlimLoRa::AesShiftRows(uint8_t (*state)[4]) {
     state[3][0] = buffer;
 }
 
-/*
-*****************************************************************************************
-* Title       : AesMix_Collums
-* Description :
-*****************************************************************************************
-*/
 void SlimLoRa::AesMixCollums(uint8_t (*state)[4]) {
     uint8_t a[4], b[4];
 
@@ -1600,12 +1535,6 @@ void SlimLoRa::AesMixCollums(uint8_t (*state)[4]) {
     }
 }
 
-/*
-*****************************************************************************************
-* Title       : AesCalculate_Round_Key
-* Description :
-*****************************************************************************************
-*/
 void SlimLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
     uint8_t tmp[4];
 
@@ -1640,7 +1569,7 @@ void SlimLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
     }
 }
 
-/*
+/**
  * EEPROM variables
  */
 uint16_t eeprom_lw_tx_frame_counter EEMEM = 0;
