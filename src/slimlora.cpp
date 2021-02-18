@@ -132,6 +132,7 @@ void SlimLoRa::Init() {
     mTxFrameCounter = GetTxFrameCounter();
     mRxFrameCounter = GetRxFrameCounter();
     mRx2DataRate = GetRx2DataRate();
+    mRx1DelayTicks = GetRx1Delay() * TICKS_PER_SECOND;
 }
 
 /**
@@ -763,6 +764,9 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     mRx2DataRate = packet[11] & 0xF;
     SetRx2DataRate(mRx2DataRate);
 
+    SetRx1Delay(packet[12] & 0xF);
+    mRx1DelayTicks = GetRx1Delay() * TICKS_PER_SECOND;
+
     mTxFrameCounter = 0;
     SetTxFrameCounter(0);
 
@@ -893,11 +897,11 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
 #endif // OTAA
 
     if (window == 1) {
-        rx_delay = CalculateRxDelay(mDataRate, LORAWAN_RECEIVE_DELAY1_TICKS);
+        rx_delay = CalculateRxDelay(mDataRate, mRx1DelayTicks);
 
         packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay);
     } else {
-        rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_RECEIVE_DELAY2_TICKS);
+        rx_delay = CalculateRxDelay(mRx2DataRate, mRx1DelayTicks + TICKS_PER_SECOND);
 
         packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
     }
@@ -1575,6 +1579,7 @@ void SlimLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
 uint16_t eeprom_lw_tx_frame_counter EEMEM = 0;
 uint16_t eeprom_lw_rx_frame_counter EEMEM = 0;
 uint8_t eeprom_lw_rx2_data_rate EEMEM = 0;
+uint8_t eeprom_lw_rx1_delay EEMEM = 0;
 
 // TxFrameCounter
 inline uint16_t SlimLoRa::GetTxFrameCounter() {
@@ -1624,6 +1629,23 @@ inline uint8_t SlimLoRa::GetRx2DataRate() {
 
 inline void SlimLoRa::SetRx2DataRate(uint8_t value) {
     eeprom_write_byte(&eeprom_lw_rx2_data_rate, value);
+}
+
+// Rx1Delay
+inline uint8_t SlimLoRa::GetRx1Delay() {
+    uint8_t value = eeprom_read_byte(&eeprom_lw_rx1_delay);
+
+    switch (value) {
+        case 0x00:
+        case 0xFF:
+            return 1;
+    }
+
+    return value;
+}
+
+inline void SlimLoRa::SetRx1Delay(uint8_t value) {
+    eeprom_write_byte(&eeprom_lw_rx1_delay, value);
 }
 
 #if OTAA

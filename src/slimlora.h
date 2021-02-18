@@ -94,8 +94,6 @@
 #define LORAWAN_JOIN_ACCEPT_MAX_SIZE    28
 
 // LoRaWAN delays in seconds
-#define LORAWAN_RECEIVE_DELAY1_TICKS        1 * TICKS_PER_SECOND
-#define LORAWAN_RECEIVE_DELAY2_TICKS        2 * TICKS_PER_SECOND
 #define LORAWAN_JOIN_ACCEPT_DELAY1_TICKS    5 * TICKS_PER_SECOND
 #define LORAWAN_JOIN_ACCEPT_DELAY2_TICKS    6 * TICKS_PER_SECOND
 
@@ -144,6 +142,7 @@ class SlimLoRa {
     uint8_t mChannel = 0;
     uint8_t mDataRate = SF10BW125;
     uint8_t mRx2DataRate;
+    uint32_t mRx1DelayTicks;
     bool mHasJoined = false;
     bool mAdrEnabled = false;
     uint16_t mTxFrameCounter = 0;
@@ -191,6 +190,8 @@ class SlimLoRa {
     inline void SetRxFrameCounter(uint16_t count);
     inline uint8_t GetRx2DataRate();
     inline void SetRx2DataRate(uint8_t value);
+    inline uint8_t GetRx1Delay();
+    inline void SetRx1Delay(uint8_t value);
 
     inline void GetDevAddr(uint8_t *dev_addr);
     inline void SetDevAddr(uint8_t *dev_addr);
