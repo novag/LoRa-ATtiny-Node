@@ -322,7 +322,7 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
  * @param address Address of the register to be written.
  * @param data Data to be written.
  */
-inline void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
+void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
     // Set NSS pin Low to start communication
     PRT_RFM_NSS &= ~(1 << PB_RFM_NSS);
 
@@ -341,7 +341,7 @@ inline void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
  * @param address Address of the register to be read.
  * @return The value of the register.
  */
-inline uint8_t SlimLoRa::RfmRead(uint8_t address) {
+uint8_t SlimLoRa::RfmRead(uint8_t address) {
     uint8_t data;
 
     // Set NSS pin low to start SPI communication
@@ -362,7 +362,7 @@ inline uint8_t SlimLoRa::RfmRead(uint8_t address) {
 /**
  * Calculates the clock drift adjustment(+-5%).
  */
-inline uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol) {
+uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol) {
     // Clock drift
     uint32_t drift = delay * 5 / 100;
     delay -= drift;
@@ -379,7 +379,7 @@ inline uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t tick
 /**
  * Calculates the centered RX window offest.
  */
-inline int32_t SlimLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) {
+int32_t SlimLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) {
     const uint16_t ticks_per_symbol = 2 * ticks_per_half_symbol;
 
     uint8_t rx_symbols = ((2 * LORAWAN_RX_MIN_SYMBOLS - 8) * ticks_per_symbol + 2 * LORAWAN_RX_ERROR_TICKS + ticks_per_symbol - 1) / ticks_per_symbol;
@@ -487,7 +487,7 @@ int8_t SlimLoRa::Join() {
  * @param cmic Calculated 4-byte MIC.
  * @param rmic Received 4-byte MIC.
  */
-inline bool SlimLoRa::CheckMic(uint8_t *cmic, uint8_t *rmic) {
+bool SlimLoRa::CheckMic(uint8_t *cmic, uint8_t *rmic) {
     return cmic[0] == rmic[0] && cmic[1] == rmic[1]
             && cmic[2] == rmic[2] && cmic[3] == rmic[3];
 }
@@ -1582,7 +1582,7 @@ uint8_t eeprom_lw_rx2_data_rate EEMEM = 0;
 uint8_t eeprom_lw_rx1_delay EEMEM = 0;
 
 // TxFrameCounter
-inline uint16_t SlimLoRa::GetTxFrameCounter() {
+uint16_t SlimLoRa::GetTxFrameCounter() {
     uint16_t value = eeprom_read_word(&eeprom_lw_tx_frame_counter);
 
     if (value == 0xFFFF) {
@@ -1592,12 +1592,12 @@ inline uint16_t SlimLoRa::GetTxFrameCounter() {
     return value;
 }
 
-inline void SlimLoRa::SetTxFrameCounter(uint16_t count) {
+void SlimLoRa::SetTxFrameCounter(uint16_t count) {
     eeprom_write_word(&eeprom_lw_tx_frame_counter, count);
 }
 
 // RxFrameCounter
-inline uint16_t SlimLoRa::GetRxFrameCounter() {
+uint16_t SlimLoRa::GetRxFrameCounter() {
     uint16_t value = eeprom_read_word(&eeprom_lw_rx_frame_counter);
 
     if (value == 0xFFFF) {
@@ -1607,12 +1607,12 @@ inline uint16_t SlimLoRa::GetRxFrameCounter() {
     return value;
 }
 
-inline void SlimLoRa::SetRxFrameCounter(uint16_t count) {
+void SlimLoRa::SetRxFrameCounter(uint16_t count) {
     eeprom_write_word(&eeprom_lw_rx_frame_counter, count);
 }
 
 // Rx2DataRate
-inline uint8_t SlimLoRa::GetRx2DataRate() {
+uint8_t SlimLoRa::GetRx2DataRate() {
     uint8_t value = eeprom_read_byte(&eeprom_lw_rx2_data_rate);
 
     if (value == 0xFF) {
@@ -1627,12 +1627,12 @@ inline uint8_t SlimLoRa::GetRx2DataRate() {
     return value;
 }
 
-inline void SlimLoRa::SetRx2DataRate(uint8_t value) {
+void SlimLoRa::SetRx2DataRate(uint8_t value) {
     eeprom_write_byte(&eeprom_lw_rx2_data_rate, value);
 }
 
 // Rx1Delay
-inline uint8_t SlimLoRa::GetRx1Delay() {
+uint8_t SlimLoRa::GetRx1Delay() {
     uint8_t value = eeprom_read_byte(&eeprom_lw_rx1_delay);
 
     switch (value) {
@@ -1644,7 +1644,7 @@ inline uint8_t SlimLoRa::GetRx1Delay() {
     return value;
 }
 
-inline void SlimLoRa::SetRx1Delay(uint8_t value) {
+void SlimLoRa::SetRx1Delay(uint8_t value) {
     eeprom_write_byte(&eeprom_lw_rx1_delay, value);
 }
 
@@ -1658,16 +1658,16 @@ uint8_t eeprom_lw_s_nwk_s_int_key[16] EEMEM;
 uint8_t eeprom_lw_nwk_s_enc_key[16] EEMEM;
 
 // DevAddr
-inline void SlimLoRa::GetDevAddr(uint8_t *dev_addr) {
+void SlimLoRa::GetDevAddr(uint8_t *dev_addr) {
     eeprom_read_block(dev_addr, eeprom_lw_dev_addr, 4);
 }
 
-inline void SlimLoRa::SetDevAddr(uint8_t *dev_addr) {
+void SlimLoRa::SetDevAddr(uint8_t *dev_addr) {
     eeprom_write_block(dev_addr, eeprom_lw_dev_addr, 4);
 }
 
 // DevNonce
-inline uint16_t SlimLoRa::GetDevNonce() {
+uint16_t SlimLoRa::GetDevNonce() {
     uint16_t value = eeprom_read_word(&eeprom_lw_dev_nonce);
 
     if (value == 0xFFFF) {
@@ -1677,12 +1677,12 @@ inline uint16_t SlimLoRa::GetDevNonce() {
     return value;
 }
 
-inline void SlimLoRa::SetDevNonce(uint16_t dev_nonce) {
+void SlimLoRa::SetDevNonce(uint16_t dev_nonce) {
     eeprom_write_word(&eeprom_lw_dev_nonce, dev_nonce);
 }
 
 // JoinNonce
-inline uint32_t SlimLoRa::GetJoinNonce() {
+uint32_t SlimLoRa::GetJoinNonce() {
     uint32_t value = eeprom_read_dword(&eeprom_lw_join_nonce);
 
     if (value == 0xFFFFFFFF) {
@@ -1692,43 +1692,43 @@ inline uint32_t SlimLoRa::GetJoinNonce() {
     return value;
 }
 
-inline void SlimLoRa::SetJoinNonce(uint32_t join_nonce) {
+void SlimLoRa::SetJoinNonce(uint32_t join_nonce) {
     eeprom_write_dword(&eeprom_lw_join_nonce, join_nonce);
 }
 
 // AppSKey
-inline void SlimLoRa::GetAppSKey(uint8_t *key) {
+void SlimLoRa::GetAppSKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_app_s_key, 16);
 }
 
-inline void SlimLoRa::SetAppSKey(uint8_t *key) {
+void SlimLoRa::SetAppSKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_app_s_key, 16);
 }
 
 // FNwkSIntKey
-inline void SlimLoRa::GetFNwkSIntKey(uint8_t *key) {
+void SlimLoRa::GetFNwkSIntKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_f_nwk_s_int_key, 16);
 }
 
-inline void SlimLoRa::SetFNwkSIntKey(uint8_t *key) {
+void SlimLoRa::SetFNwkSIntKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_f_nwk_s_int_key, 16);
 }
 
 // SNwkSIntKey
-inline void SlimLoRa::GetSNwkSIntKey(uint8_t *key) {
+void SlimLoRa::GetSNwkSIntKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_s_nwk_s_int_key, 16);
 }
 
-inline void SlimLoRa::SetSNwkSIntKey(uint8_t *key) {
+void SlimLoRa::SetSNwkSIntKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_s_nwk_s_int_key, 16);
 }
 
 // NwkSEncKey
-inline void SlimLoRa::GetNwkSEncKey(uint8_t *key) {
+void SlimLoRa::GetNwkSEncKey(uint8_t *key) {
     eeprom_read_block(key, eeprom_lw_nwk_s_enc_key, 16);
 }
 
-inline void SlimLoRa::SetNwkSEncKey(uint8_t *key) {
+void SlimLoRa::SetNwkSEncKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_nwk_s_enc_key, 16);
 }
 #endif // OTAA

@@ -58,11 +58,11 @@ PGM_P const DEBUG_STRINGS[] PROGMEM = {
     STR_FCNT_R
 };
 
-inline void tx(const char *str) {
+void tx(const char *str) {
     while (*str) TxByte(*str++);
 }
 
-inline void tx_dstr(DStr dstr) {
+void tx_dstr(DStr dstr) {
     PGM_P str = (PGM_P) pgm_read_word(&DEBUG_STRINGS[dstr]);
     char c;
 

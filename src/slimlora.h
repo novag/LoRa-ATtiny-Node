@@ -158,12 +158,12 @@ class SlimLoRa {
     static const uint8_t S_Table[16][16];
     int8_t RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp);
     void RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer);
-    inline void RfmWrite(uint8_t address, uint8_t data);
-    inline uint8_t RfmRead(uint8_t address);
-    inline uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol);
-    inline int32_t CalculateRxWindowOffset(int16_t ticks_per_half_symbol);
+    void RfmWrite(uint8_t address, uint8_t data);
+    uint8_t RfmRead(uint8_t address);
+    uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol);
+    int32_t CalculateRxWindowOffset(int16_t ticks_per_half_symbol);
     uint32_t CalculateRxDelay(uint8_t data_rate, uint32_t delay);
-    inline bool CheckMic(uint8_t *cmic, uint8_t *rmic);
+    bool CheckMic(uint8_t *cmic, uint8_t *rmic);
     bool ProcessJoinAccept1_0(uint8_t *rfm_data, uint8_t rfm_data_length);
     bool ProcessJoinAccept1_1(uint8_t *rfm_data, uint8_t rfm_data_length);
     int8_t ProcessJoinAccept(uint8_t window);
@@ -184,29 +184,29 @@ class SlimLoRa {
     void AesCalculateRoundKey(uint8_t round, uint8_t *round_key);
 
     // EEPROM
-    inline uint16_t GetTxFrameCounter();
-    inline void SetTxFrameCounter(uint16_t count);
-    inline uint16_t GetRxFrameCounter();
-    inline void SetRxFrameCounter(uint16_t count);
-    inline uint8_t GetRx2DataRate();
-    inline void SetRx2DataRate(uint8_t value);
-    inline uint8_t GetRx1Delay();
-    inline void SetRx1Delay(uint8_t value);
+    uint16_t GetTxFrameCounter();
+    void SetTxFrameCounter(uint16_t count);
+    uint16_t GetRxFrameCounter();
+    void SetRxFrameCounter(uint16_t count);
+    uint8_t GetRx2DataRate();
+    void SetRx2DataRate(uint8_t value);
+    uint8_t GetRx1Delay();
+    void SetRx1Delay(uint8_t value);
 
-    inline void GetDevAddr(uint8_t *dev_addr);
-    inline void SetDevAddr(uint8_t *dev_addr);
-    inline uint16_t GetDevNonce();
-    inline void SetDevNonce(uint16_t dev_nonce);
-    inline uint32_t GetJoinNonce();
-    inline void SetJoinNonce(uint32_t join_nonce);
-    inline void GetAppSKey(uint8_t *key);
-    inline void SetAppSKey(uint8_t *key);
-    inline void GetFNwkSIntKey(uint8_t *key);
-    inline void SetFNwkSIntKey(uint8_t *key);
-    inline void GetSNwkSIntKey(uint8_t *key);
-    inline void SetSNwkSIntKey(uint8_t *key);
-    inline void GetNwkSEncKey(uint8_t *key);
-    inline void SetNwkSEncKey(uint8_t *key);
+    void GetDevAddr(uint8_t *dev_addr);
+    void SetDevAddr(uint8_t *dev_addr);
+    uint16_t GetDevNonce();
+    void SetDevNonce(uint16_t dev_nonce);
+    uint32_t GetJoinNonce();
+    void SetJoinNonce(uint32_t join_nonce);
+    void GetAppSKey(uint8_t *key);
+    void SetAppSKey(uint8_t *key);
+    void GetFNwkSIntKey(uint8_t *key);
+    void SetFNwkSIntKey(uint8_t *key);
+    void GetSNwkSIntKey(uint8_t *key);
+    void SetSNwkSIntKey(uint8_t *key);
+    void GetNwkSEncKey(uint8_t *key);
+    void SetNwkSEncKey(uint8_t *key);
 };
 
 #endif
