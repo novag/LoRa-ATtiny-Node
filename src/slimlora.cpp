@@ -808,7 +808,7 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
     for (uint8_t i = 0; i < f_options_length; i++) {
         switch (options[i]) {
             case LORAWAN_FOPT_LINK_CHECK_ANS:
-                i += 2;
+                i += LORAWAN_FOPT_LINK_CHECK_ANS_SIZE;
                 break;
             case LORAWAN_FOPT_LINK_ADR_REQ:
                 new_data_rate = options[i + 1] >> 4;
@@ -822,10 +822,10 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                     mPendingFopts.fopts[mPendingFopts.length++] = 0;
                 }
 
-                i += 4;
+                i += LORAWAN_FOPT_LINK_ADR_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_DUTY_CYCLE_REQ:
-                i += 1;
+                i += LORAWAN_FOPT_DUTY_CYCLE_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_RX_PARAM_SETUP_REQ:
                 new_data_rate = options[i + 1] & 0xF;
@@ -840,31 +840,35 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                     mPendingFopts.fopts[mPendingFopts.length++] = 0;
                 }
 
-                i += 4;
+                i += LORAWAN_FOPT_RX_PARAM_SETUP_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_DEV_STATUS_REQ:
-                i += 2;
+                i += LORAWAN_FOPT_DEV_STATUS_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_NEW_CHANNEL_REQ:
-                i += 5;
+                i += LORAWAN_FOPT_NEW_CHANNEL_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_RX_TIMING_SETUP_REQ:
-                i += 1;
+                i += LORAWAN_FOPT_RX_TIMING_SETUP_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_TX_PARAM_SETUP_REQ:
-                i += 1;
+                i += LORAWAN_FOPT_TX_PARAM_SETUP_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_DL_CHANNEL_REQ:
-                i += 4;
+                i += LORAWAN_FOPT_DL_CHANNEL_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_DEVICE_TIME_ANS:
-                i += 5;
+                i += LORAWAN_FOPT_DEVICE_TIME_ANS_SIZE;
                 break;
             case LORAWAN_FOPT_PROP_DISABLE_ADR:
                 mAdrEnabled = false;
+
+                i += LORAWAN_FOPT_PROP_DISABLE_ADR_SIZE;
                 break;
             case LORAWAN_FOPT_PROP_ENABLE_ADR:
                 mAdrEnabled = true;
+
+                i += LORAWAN_FOPT_PROP_ENABLE_ADR_SIZE;
                 break;
             default:
                 return;

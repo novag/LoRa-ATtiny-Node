@@ -6,7 +6,7 @@
 
 #include "timing.h"
 
-// RFM
+// RFM registers
 #define RFM_REG_FIFO                    0x00
 #define RFM_REG_OP_MODE                 0x01
 #define RFM_REG_FR_MSB                  0x06
@@ -89,9 +89,24 @@
 #define LORAWAN_FOPT_PROP_DISABLE_ADR       0x90
 #define LORAWAN_FOPT_PROP_ENABLE_ADR        0x91
 
+// LoRaWAN frame option payload size
+#define LORAWAN_FOPT_LINK_CHECK_ANS_SIZE        2
+#define LORAWAN_FOPT_LINK_ADR_REQ_SIZE          4
+#define LORAWAN_FOPT_DUTY_CYCLE_REQ_SIZE        1
+#define LORAWAN_FOPT_RX_PARAM_SETUP_REQ_SIZE    4
+#define LORAWAN_FOPT_DEV_STATUS_REQ_SIZE        2
+#define LORAWAN_FOPT_NEW_CHANNEL_REQ_SIZE       5
+#define LORAWAN_FOPT_RX_TIMING_SETUP_REQ_SIZE   1
+#define LORAWAN_FOPT_TX_PARAM_SETUP_REQ_SIZE    1
+#define LORAWAN_FOPT_DL_CHANNEL_REQ_SIZE        4
+#define LORAWAN_FOPT_DEVICE_TIME_ANS_SIZE       5
+// Proprietary
+#define LORAWAN_FOPT_PROP_DISABLE_ADR_SIZE      0
+#define LORAWAN_FOPT_PROP_ENABLE_ADR_SIZE       0
+
 // LoRaWAN Join packet sizes
-#define LORAWAN_JOIN_REQUEST_SIZE       18
-#define LORAWAN_JOIN_ACCEPT_MAX_SIZE    28
+#define LORAWAN_JOIN_REQUEST_SIZE           18
+#define LORAWAN_JOIN_ACCEPT_MAX_SIZE        28
 
 // LoRaWAN delays in seconds
 #define LORAWAN_JOIN_ACCEPT_DELAY1_TICKS    5 * TICKS_PER_SECOND
