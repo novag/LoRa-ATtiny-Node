@@ -61,6 +61,11 @@ program: hex
 	 -p $(PROGRAMMER_MCU) -B 5 -e \
 	 -U flash:w:$(TARGET).hex:a
 
+write_eeprom: eeprom
+	$(AVRDUDE) -c $(AVRDUDE_PROGRAMMERID) \
+	 -p $(PROGRAMMER_MCU) -B 5 -e \
+	 -U eeprom:w:$(TARGET)_eeprom.hex
+
 clean:
 	@echo " Cleaning..."
 	@echo " rm -r $(BUILDDIR) $(TARGETDIR)"; rm -r $(BUILDDIR) $(TARGETDIR)
