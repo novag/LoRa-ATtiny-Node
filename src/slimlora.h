@@ -20,6 +20,8 @@
 #define RFM_REG_IRQ_FLAGS_MASK          0x11
 #define RFM_REG_IRQ_FLAGS               0x12
 #define RFM_REG_RX_NB_BYTES             0x13
+#define RFM_REG_PKT_SNR_VALUE           0x19
+#define RFM_REG_PKT_RSSI_VALUE          0x1A
 #define RFM_REG_MODEM_CONFIG_1          0x1D
 #define RFM_REG_MODEM_CONFIG_2          0x1E
 #define RFM_REG_SYMB_TIMEOUT_LSB        0x1F
@@ -167,6 +169,7 @@ class SlimLoRa {
     fopts_t mPendingFopts = {0};
     uint8_t mRxSymbols = LORAWAN_RX_MIN_SYMBOLS;
     uint32_t mTxDoneTickstamp;
+    int8_t mLastPacketSnr;
     static const uint8_t FrequencyTable[9][3];
     static const uint8_t DataRateTable[7][3];
     static const uint16_t DRTicksPerHalfSymbol[7];

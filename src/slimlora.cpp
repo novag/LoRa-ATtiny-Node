@@ -212,6 +212,9 @@ int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
         packet[i] = RfmRead(RFM_REG_FIFO);
     }
 
+    // SNR
+    mLastPacketSnr = (int8_t) RfmRead(RFM_REG_PKT_SNR_VALUE) / 4;
+
     // Clear interrupts
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
@@ -798,7 +801,7 @@ end:
  * Processes frame options of downlink packets.
  *
  * @param options Pointer to the start of the frame options section.
- * @param f_options Length of the frame options section.
+ * @param f_options_length Length of the frame options section.
  */
 void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
     uint8_t new_data_rate;
@@ -845,6 +848,11 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 i += LORAWAN_FOPT_RX_PARAM_SETUP_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_DEV_STATUS_REQ:
+                mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_DEV_STATUS_ANS;
+                // TODO: Battery level
+                mPendingFopts.fopts[mPendingFopts.length++] = 0xFF;
+                mPendingFopts.fopts[mPendingFopts.length++] = (mLastPacketSnr & 0x80) >> 2 | mLastPacketSnr & 0x1F;
+
                 i += LORAWAN_FOPT_DEV_STATUS_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_NEW_CHANNEL_REQ:
