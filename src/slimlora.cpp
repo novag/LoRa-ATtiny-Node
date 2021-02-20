@@ -192,7 +192,7 @@ int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
     RfmWrite(RFM_REG_OP_MODE, 0x86);
 
 #ifdef DEBUG
-    debug(DSTR_2);
+    debug_fast();
 #endif // DEBUG
 
     // Wait for RxDone or RxTimeout
@@ -293,10 +293,6 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
         ATOMIC_BLOCK(ATOMIC_FORCEON) {
             mTxDoneTickstamp = t0_ticks;
         }
-
-#ifdef DEBUG
-        debug(DSTR_1);
-#endif // DEBUG
     }
 
 #ifdef DEBUG
@@ -687,12 +683,18 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     uint32_t join_nonce;
 
     if (window == 1) {
-        rx_delay = CalculateRxDelay(mDataRate, LORAWAN_JOIN_ACCEPT_DELAY1_TICKS);
+#ifdef DEBUG
+        debug(DSTR_1);
+#endif // DEBUG
 
+        rx_delay = CalculateRxDelay(mDataRate, LORAWAN_JOIN_ACCEPT_DELAY1_TICKS);
         packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay);
     } else {
-        rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_JOIN_ACCEPT_DELAY2_TICKS);
+#ifdef DEBUG
+        debug(DSTR_2);
+#endif // DEBUG
 
+        rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_JOIN_ACCEPT_DELAY2_TICKS);
         packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
     }
 #ifdef DEBUG
@@ -901,12 +903,18 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
 #endif // OTAA
 
     if (window == 1) {
-        rx_delay = CalculateRxDelay(mDataRate, mRx1DelayTicks);
+#ifdef DEBUG
+        debug(DSTR_1);
+#endif // DEBUG
 
+        rx_delay = CalculateRxDelay(mDataRate, mRx1DelayTicks);
         packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay);
     } else {
-        rx_delay = CalculateRxDelay(mRx2DataRate, mRx1DelayTicks + TICKS_PER_SECOND);
+#ifdef DEBUG
+        debug(DSTR_2);
+#endif // DEBUG
 
+        rx_delay = CalculateRxDelay(mRx2DataRate, mRx1DelayTicks + TICKS_PER_SECOND);
         packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
     }
 #ifdef DEBUG

@@ -39,6 +39,7 @@ enum DStr {
     DSTR_FCNT_R
 };
 
+void debug_fast();
 void debug(DStr dstr);
 void debug_int16(DStr dstr, int16_t value);
 void debug_uint16(DStr dstr, uint16_t value);

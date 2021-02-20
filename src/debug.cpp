@@ -69,6 +69,12 @@ void tx_dstr(DStr dstr) {
     while ((c = pgm_read_byte(str++))) TxByte(c);
 }
 
+
+void debug_fast() {
+    TxByte('+');
+    TxByte('\n');
+}
+
 void debug(DStr dstr) {
     tx_dstr(dstr);
 
