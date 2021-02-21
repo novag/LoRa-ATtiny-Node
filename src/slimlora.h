@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "config.h"
 #include "timing.h"
 
 // RFM registers
@@ -119,10 +120,6 @@
 #define LORAWAN_RX_SETUP_TICKS              2000 * TICKS_PER_SECOND / 1000000   // 2000 us
 #define LORAWAN_RX_MIN_SYMBOLS              6
 
-// LoRaWAN ADR
-#define LORAWAN_ADR_ACK_LIMIT   64
-#define LORAWAN_ADR_ACK_DELAY   32
-
 // EU868 region settings
 #define LORAWAN_EU868_TX_POWER_MAX          7
 #define LORAWAN_EU868_RX1_DR_OFFSET_MAX     5
@@ -166,7 +163,7 @@ class SlimLoRa {
     uint8_t mRx2DataRate;
     uint32_t mRx1DelayTicks;
     bool mHasJoined = false;
-    bool mAdrEnabled = false;
+    bool mAdrEnabled = LORAWAN_ADR_ENABLED;
     uint16_t mTxFrameCounter = 0;
     uint16_t mRxFrameCounter = 0;
     uint8_t mAdrAckCounter = 0;

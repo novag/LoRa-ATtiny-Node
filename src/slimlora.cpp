@@ -25,7 +25,6 @@
 #include <util/atomic.h>
 #include <util/delay.h>
 
-#include "config.h"
 #include "pins.h"
 #include "slimlora.h"
 #include "tinyspi.h"
