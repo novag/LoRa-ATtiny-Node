@@ -1067,10 +1067,11 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     // Encrypt the data
     EncryptPayload(payload, payload_length, mTxFrameCounter, LORAWAN_DIRECTION_UP);
 
-    // Spreading factor adjustment
+    // ADR backoff
     // TODO: Probably too aggressive
-    if (mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT + LORAWAN_ADR_ACK_DELAY) {
+    if (mAdrEnabled && mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT + LORAWAN_ADR_ACK_DELAY) {
         mDataRate = SF12BW125;
+        RfmWrite(RFM_REG_PA_CONFIG, 0xFE);
     }
 
     // Build the packet
@@ -1093,7 +1094,7 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     if (mAdrEnabled) {
         packet[packet_length] |= LORAWAN_FCTRL_ADR;
 
-        if (mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT && mDataRate != SF12BW125) {
+        if (mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT) {
             packet[packet_length] |= LORAWAN_FCTRL_ADR_ACK_REQ;
         }
     }
