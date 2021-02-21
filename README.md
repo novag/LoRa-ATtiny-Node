@@ -1,4 +1,6 @@
-# SlimLoRa library
+# LoRa-ATtiny-Node
+
+*If you are looking for the generic SlimLoRa library for use with Arduinos click [HERE](https://github.com/novag/SlimLoRa).*
 
 This repository contains the SlimLoRa LoRaWAN library with a sample project for ATtiny85 chips. It uses AES encryption routines originally written by Ideentron B.V.. SlimLoRa is compatible with all radio chips based on the Semtech SX1276 (e.g. HopeRF RFM95).
 
@@ -6,7 +8,7 @@ Currently this library is heavily optimized for ATtiny85 chips and needs changes
 
 SlimLoRa implements the ABP and OTAA activation schemes. It has support for downlink messages and the Adaptive Data Rate (ADR) mechanism.
 
-Although most of the LoRaWAN 1.0.3 Class A specification is implemented, this library does not cover the entire specification and thus *is not fully* LoRaWAN 1.0 compliant. Please verify its behavior before using it on public networks.  
+Although the basic things of the LoRaWAN 1.0.3 Class A specification are implemented, this library does not cover the entire specification and thus *is not fully* LoRaWAN 1.0 compliant. Please verify its behavior before using it on public networks.  
 It also **does not** enforce a duty cycle. This must be ensured by the user.
 
 **Contents:**
