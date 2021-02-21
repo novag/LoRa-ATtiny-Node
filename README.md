@@ -1,16 +1,17 @@
 # SlimLoRa library
 
-This repository contains the SlimLoRa LoRaWAN library with a sample project for ATtiny85 chips. It relies on the AES implementation by Ideentron. It is compatible with the HopeRF RFM95 and the Semtech SX1276 radio chips.
+This repository contains the SlimLoRa LoRaWAN library with a sample project for ATtiny85 chips. It uses AES encryption routines originally written by Ideentron B.V.. SlimLoRa is compatible with all radio chips based on the Semtech SX1276 (e.g. HopeRF RFM95).
 
-Currently this library is heavily optimized for ATtiny85 chips and needs changes to run on other devices (e.g. Arduino). Furthermore, currently only the EU band around 868 MHz is supported.
+Currently this library is heavily optimized for ATtiny85 chips and needs changes to run on other devices (e.g. Arduino). Furthermore, currently only the EU-868 band is supported.
 
-SlimLoRa implements the ABP and OTAA activation schemes. It has support for downlink messages and the Adaptive Data Rate mechanism.
+SlimLoRa implements the ABP and OTAA activation schemes. It has support for downlink messages and the Adaptive Data Rate (ADR) mechanism.
 
-This library *is not* fully LoRaWAN 1.0 compliant. Please verify its behavior before using it on public networks.
-It also *does not* enforce a duty cycle. This must be ensured by the user.
+Although most of the LoRaWAN 1.0.3 Class A specification is implemented, this library does not cover the entire specification and thus *is not fully* LoRaWAN 1.0 compliant. Please verify its behavior before using it on public networks.  
+It also **does not** enforce a duty cycle. This must be ensured by the user.
 
 **Contents:**
 
+- [Purpose](#purpose)
 - [Installing](#installing)
 - [Features](#features)
 - [Requirements and Limitations](#requirements-and-limitations)
@@ -22,6 +23,10 @@ It also *does not* enforce a duty cycle. This must be ensured by the user.
 - [Sample Board](#sample-board)
 - [Trademark Acknowledgements](#trademark-acknowledgements)
 - [License](#license)
+
+## Purpose
+
+I developed SlimLoRa and this sample project as a fun project to prove that a full LoRaWAN implementation with support for various sensors can run on an ATtiny85 MCU with only 5 data pins, 8K of flash memory, 512 bytes of EEPROM, 512 bytes of SRAM and without an external clock.
 
 ## Installing
 
@@ -37,38 +42,38 @@ make program
 
 ## Features
 
-This library provides a usable LoRaWAN 1.0 Class A implementation supporting the EU-868 band.
+This library provides a LoRaWAN 1.0 Class A implementation for the EU-868 band.
 
 The library has some support for LoRaWAN 1.1 which is not usable yet.
 
-- Sending uplink packets, not taking into account duty cycles.
+- Sending uplink packets, *not* taking into account duty cycles.
 - Message encryption and message integrity checking.
 - Over-the-Air Activation (OTAA).
 - Activation by Personalization (ABP).
-- Adaptive Data Rate for spreading factors (ADR).
+- Adaptive Data Rate (ADR).
 - Receiving downlink packets in the RX1 and RX2 windows.
-- MAC command processing for LinkAdr and RxParamSetup requests.
+- MAC command processing for LinkAdr, RxParamSetup, DevStatus and RxTimingSetup requests.
 
 ## Requirements and Limitations
 
 ### No event handling
 This library does not implement any kind of event handling. A call to the Join and SendData methods will block for several seconds until the end of the second receive window.
 
+Be sure to put connected sensors into sleep mode before sending data to save energy!
+
 ### Timer0
 SlimLoRa uses the Timer0 on every call of the Join or SendData methods. Between these calls Timer0 can be used by the user for other purposes.
 See also timing.h and timing.c.
 
 ### Memory requirements
-SlimLoRa uses about 350 bytes of SRAM for its stack and about 64 bytes for global symbols.
+SlimLoRa uses a maximum of 141 bytes of RAM for its stack and 103 bytes for global symbols.
 
-The current project has a maximum total SRAM usage of about 460 bytes.
+The current project has a maximum total RAM usage of about 250 bytes.
 On an ATtiny85 you should never call into the Join and SendData methods from deeply nested functions. Analyze and profile your program!
 
 ## Configuration
 
-Attached sensors can be configured in the config.h header file. You should also configure the DeviceEUI, JoinEUI (AppEUI) and the keys in this file.
-
-Enabling and disabling the ADR mechanism can be done using the SetAdrEnabled method.
+LoRaWAN settings and attached sensors can be configured in the config.h header file.
 
 #### Debug output
 
@@ -90,16 +95,14 @@ The user can choose between ABP and OTAA activation and can enable or disable AD
 
 The ATtiny can act as an SPI, I2C and Dallas 1-Wire master. Thus the following three sensors are currently supported:
 - DHT22 (Non-standardized OneWire)
-- SI7021 (I2C slave)
 - DS18B20 (Dallas 1-Wire)
+- SI7021 (I2C slave)
 
-This means, that with the available ports, in addition to the radio module, either one non-standardized OneWire device, multiple I2C devices, multiple Dallas 1-Wire devices or one additonal SPI slave device can be connected.
+That means, with the available ports, in addition to the radio module, either one non-standardized OneWire device, multiple Dallas 1-Wire devices, multiple I2C devices or one additonal SPI slave device can be connected.
 
 Only select a single device in the configuration file. Otherwhise the first selected device will take precedence.
 
 ## Timing
-
-*TODO*
 
 ## Release History
 
@@ -111,9 +114,9 @@ Only select a single device in the configuration file. Otherwhise the first sele
 
 ## Contributions
 
-This library started from parts written by Ideetron B.V.. Of these, almost only the AES routines are left.
+This library started from parts written by Ideetron B.V.. Of these, almost only the AES routines are left. Thanks to Ideetron B.V.!
 
-- Hendrik Hagendorn - OTAA/downlink/timing implementation, ATtiny85 optimization, ...
+- Hendrik Hagendorn
 
 - Ideentron B.V. - [RFM95W_Nexus](https://github.com/Ideetron/RFM95W_Nexus)
 
