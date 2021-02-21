@@ -125,6 +125,7 @@
 
 // EU868 region settings
 #define LORAWAN_EU868_TX_POWER_MAX          7
+#define LORAWAN_EU868_RX1_DR_OFFSET_MAX     5
 
 // LoRaWAN Error
 #define LORAWAN_ERROR_NO_PACKET_RECEIVED    -1
@@ -161,6 +162,7 @@ class SlimLoRa {
   private:
     uint8_t mChannel = 0;
     uint8_t mDataRate = SF10BW125;
+    uint8_t mRx1DataRateOffset = 0;
     uint8_t mRx2DataRate;
     uint32_t mRx1DelayTicks;
     bool mHasJoined = false;
@@ -209,6 +211,8 @@ class SlimLoRa {
     void SetTxFrameCounter(uint16_t count);
     uint16_t GetRxFrameCounter();
     void SetRxFrameCounter(uint16_t count);
+    uint8_t GetRx1DataRateOffset();
+    void SetRx1DataRateOffset(uint8_t value);
     uint8_t GetRx2DataRate();
     void SetRx2DataRate(uint8_t value);
     uint8_t GetRx1Delay();

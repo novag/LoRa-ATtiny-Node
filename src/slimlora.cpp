@@ -766,6 +766,9 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     dev_addr[3] = packet[7];
     SetDevAddr(dev_addr);
 
+    mRx1DataRateOffset = (packet[11] & 0x70) >> 4;
+    SetRx1DataRateOffset(mRx1DataRateOffset);
+
     mRx2DataRate = packet[11] & 0xF;
     SetRx2DataRate(mRx2DataRate);
 
@@ -804,7 +807,7 @@ end:
  * @param f_options_length Length of the frame options section.
  */
 void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
-    uint8_t status, new_data_rate, tx_power;
+    uint8_t status, new_rx1_dr_offset, new_rx2_dr, tx_power;
 
     if (f_options_length == 0) {
         return;
@@ -817,10 +820,10 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 break;
             case LORAWAN_FOPT_LINK_ADR_REQ:
                 status = 0x1;
-                new_data_rate = options[i + 1] >> 4;
+                new_rx2_dr = options[i + 1] >> 4;
                 tx_power = options[i + 1] & 0xF;
 
-                if (new_data_rate == 0xF || (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250)) { // Reversed table index
+                if (new_rx2_dr == 0xF || (new_rx2_dr >= SF12BW125 && new_rx2_dr <= SF7BW250)) { // Reversed table index
                     status |= 0x2;
                 }
                 if (tx_power == 0xF || tx_power <= LORAWAN_EU868_TX_POWER_MAX) {
@@ -828,8 +831,8 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 }
 
                 if (status == 0x7) {
-                    if (new_data_rate != 0xF) {
-                        mDataRate = new_data_rate;
+                    if (new_rx2_dr != 0xF) {
+                        mDataRate = new_rx2_dr;
                     }
                     if (tx_power != 0xF) {
                         RfmWrite(RFM_REG_PA_CONFIG, 0xF0 | (14 - tx_power * 2));
@@ -845,17 +848,27 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 i += LORAWAN_FOPT_DUTY_CYCLE_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_RX_PARAM_SETUP_REQ:
-                new_data_rate = options[i + 1] & 0xF;
-                if (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250) { // Reversed table index (SF7B250 higher)
-                    mRx2DataRate = new_data_rate;
-                    SetRx2DataRate(mRx2DataRate);
+                status = 0x1;
+                new_rx1_dr_offset = (options[i + 1] & 0x70) >> 4;
+                new_rx2_dr = options[i + 1] & 0xF;
 
-                    mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
-                    mPendingFopts.fopts[mPendingFopts.length++] = 0x2;
-                } else {
-                    mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
-                    mPendingFopts.fopts[mPendingFopts.length++] = 0;
+                if (new_rx1_dr_offset <= LORAWAN_EU868_RX1_DR_OFFSET_MAX) {
+                    status |= 0x4;
                 }
+                if (new_rx2_dr >= SF12BW125 && new_rx2_dr <= SF7BW250) { // Reversed table index
+                    status |= 0x2;
+                }
+
+                if (status == 0x7) {
+                    mRx1DataRateOffset = new_rx1_dr_offset;
+                    SetRx1DataRateOffset(mRx1DataRateOffset);
+
+                    mRx2DataRate = new_rx2_dr;
+                    SetRx2DataRate(mRx2DataRate);
+                }
+
+                mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
+                mPendingFopts.fopts[mPendingFopts.length++] = status;
 
                 i += LORAWAN_FOPT_RX_PARAM_SETUP_REQ_SIZE;
                 break;
@@ -911,6 +924,7 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
  */
 int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
     int8_t result;
+    uint8_t rx1_offset_dr;
     uint32_t rx_delay;
 
     uint8_t packet[64];
@@ -932,8 +946,12 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
         debug(DSTR_1);
 #endif // DEBUG
 
-        rx_delay = CalculateRxDelay(mDataRate, mRx1DelayTicks);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay);
+        rx1_offset_dr = mDataRate + mRx1DataRateOffset; // Reversed table index
+        if (rx1_offset_dr > SF7BW125) {
+            rx1_offset_dr = SF7BW125;
+        }
+        rx_delay = CalculateRxDelay(rx1_offset_dr, mRx1DelayTicks);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, rx1_offset_dr, mTxDoneTickstamp + rx_delay);
     } else {
 #ifdef DEBUG
         debug(DSTR_2);
@@ -1615,6 +1633,7 @@ void SlimLoRa::AesCalculateRoundKey(uint8_t round, uint8_t *round_key) {
  */
 uint16_t eeprom_lw_tx_frame_counter EEMEM = 0;
 uint16_t eeprom_lw_rx_frame_counter EEMEM = 0;
+uint8_t eeprom_lw_rx1_data_rate_offset EEMEM = 0;
 uint8_t eeprom_lw_rx2_data_rate EEMEM = 0;
 uint8_t eeprom_lw_rx1_delay EEMEM = 0;
 
@@ -1646,6 +1665,21 @@ uint16_t SlimLoRa::GetRxFrameCounter() {
 
 void SlimLoRa::SetRxFrameCounter(uint16_t count) {
     eeprom_write_word(&eeprom_lw_rx_frame_counter, count);
+}
+
+// Rx1DataRateOffset
+uint8_t SlimLoRa::GetRx1DataRateOffset() {
+    uint8_t value = eeprom_read_byte(&eeprom_lw_rx1_data_rate_offset);
+
+    if (value == 0xFF) {
+        return 0;
+    }
+
+    return value;
+}
+
+void SlimLoRa::SetRx1DataRateOffset(uint8_t value) {
+    eeprom_write_byte(&eeprom_lw_rx1_data_rate_offset, value);
 }
 
 // Rx2DataRate
