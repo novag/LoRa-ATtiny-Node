@@ -29,7 +29,7 @@
 #include "slimlora.h"
 #include "tinyspi.h"
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
 extern const uint8_t DevEUI[8];
 extern const uint8_t JoinEUI[8];
 extern const uint8_t NwkKey[16];
@@ -411,7 +411,7 @@ void SlimLoRa::SetAdrEnabled(bool enabled) {
     mAdrEnabled = enabled;
 }
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
 /**
  * Check if the device joined a LoRaWAN network.
  */
@@ -459,11 +459,11 @@ int8_t SlimLoRa::Join() {
 
     packet_length = 1 + LORAWAN_JOIN_REQUEST_SIZE;
 
-#if LORAWAN1_1
+#if LORAWAN_V1_1_ENABLED
     CalculateMic(NwkKey, packet, NULL, mic, packet_length);
 #else
     CalculateMic(AppKey, packet, NULL, mic, packet_length);
-#endif // LORAWAN1_1
+#endif // LORAWAN_V1_1_ENABLED
     for (uint8_t i = 0; i < 4; i++) {
         packet[i + packet_length] = mic[i];
     }
@@ -544,7 +544,7 @@ bool SlimLoRa::ProcessJoinAccept1_0(uint8_t *packet, uint8_t packet_length) {
     return true;
 }
 
-#if LORAWAN1_1
+#if LORAWAN_V1_1_ENABLED
 /**
  * Processes a LoRaWAN 1.1 JoiNAccept message.
  *
@@ -665,7 +665,7 @@ bool SlimLoRa::ProcessJoinAccept1_1(uint8_t *packet, uint8_t packet_length) {
 
     return true;
 }
-#endif // LORAWAN1_1
+#endif // LORAWAN_V1_1_ENABLED
 
 /**
  * Listens for and processes a LoRaWAN JoinAccept message.
@@ -718,17 +718,17 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
         goto end;
     }
 
-#if LORAWAN1_1
+#if LORAWAN_V1_1_ENABLED
     AesEncrypt(NwkKey, packet + 1);
 #else
     AesEncrypt(AppKey, packet + 1);
-#endif // LORAWAN1_1
+#endif // LORAWAN_V1_1_ENABLED
     if (packet_length > 17) {
-#if LORAWAN1_1
+#if LORAWAN_V1_1_ENABLED
         AesEncrypt(NwkKey, packet + 17);
 #else
         AesEncrypt(AppKey, packet + 17);
-#endif // LORAWAN1_1
+#endif // LORAWAN_V1_1_ENABLED
     }
 
     // Check JoinNonce validity
@@ -742,9 +742,9 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     if (packet[11] & 0x80) {
         // LoRaWAN1.1+
 
-#if LORAWAN1_1
+#if LORAWAN_V1_1_ENABLED
         mic_valid = ProcessJoinAccept1_1(packet, packet_length);
-#endif // LORAWAN1_1
+#endif // LORAWAN_V1_1_ENABLED
     } else {
         // LoRaWAN1.0
 
@@ -797,7 +797,7 @@ end:
 
     return result;
 }
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
 /**
  * Processes frame options of downlink packets.
@@ -935,10 +935,10 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
 
     uint8_t mic[4];
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     uint8_t dev_addr[4];
     GetDevAddr(dev_addr);
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
     if (window == 1) {
 #ifdef DEBUG
@@ -989,7 +989,7 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
         goto end;
     }
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     if (!(packet[4] == dev_addr[0] && packet[3] == dev_addr[1]
             && packet[2] == dev_addr[2] && packet[1] == dev_addr[3])) {
         result = LORAWAN_ERROR_UNEXPECTED_DEV_ADDR;
@@ -1001,7 +1001,7 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
         result = LORAWAN_ERROR_UNEXPECTED_DEV_ADDR;
         goto end;
     }
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
     // Check MIC
     CalculateMessageMic(packet, mic, packet_length - 4, frame_counter, LORAWAN_DIRECTION_DOWN);
@@ -1058,10 +1058,10 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
 
     uint8_t mic[4];
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     uint8_t dev_addr[4];
     GetDevAddr(dev_addr);
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
     // Encrypt the data
     EncryptPayload(payload, payload_length, mTxFrameCounter, LORAWAN_DIRECTION_UP);
@@ -1076,7 +1076,7 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     // Build the packet
     packet[packet_length++] = LORAWAN_MTYPE_UNCONFIRMED_DATA_UP;
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     packet[packet_length++] = dev_addr[3];
     packet[packet_length++] = dev_addr[2];
     packet[packet_length++] = dev_addr[1];
@@ -1086,7 +1086,7 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     packet[packet_length++] = DevAddr[2];
     packet[packet_length++] = DevAddr[1];
     packet[packet_length++] = DevAddr[0];
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
     // Frame control
     packet[packet_length] = 0;
@@ -1162,11 +1162,11 @@ void SlimLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
 
     uint8_t block_a[16];
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     uint8_t dev_addr[4], app_s_key[16];
     GetDevAddr(dev_addr);
     GetAppSKey(app_s_key);
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
     // Calculate number of blocks
     block_count = payload_length / 16;
@@ -1184,7 +1184,7 @@ void SlimLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
 
         block_a[5] = direction;
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
         block_a[6] = dev_addr[3];
         block_a[7] = dev_addr[2];
         block_a[8] = dev_addr[1];
@@ -1194,7 +1194,7 @@ void SlimLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
         block_a[7] = DevAddr[2];
         block_a[8] = DevAddr[1];
         block_a[9] = DevAddr[0];
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
         block_a[10] = frame_counter & 0xFF;
         block_a[11] = frame_counter >> 8;
@@ -1207,11 +1207,11 @@ void SlimLoRa::EncryptPayload(uint8_t *payload, uint8_t payload_length, unsigned
         block_a[15] = i;
 
         // Calculate S
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
         AesEncrypt(app_s_key, block_a);
 #else
         AesEncrypt(AppSKey, block_a);
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
         // Check for last block
         if (i != block_count) {
@@ -1339,12 +1339,12 @@ void SlimLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_
  */
 void SlimLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t data_length, unsigned int frame_counter, uint8_t direction) {
     uint8_t block_b[16];
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     uint8_t dev_addr[4], nwk_s_key[16];
 
     GetDevAddr(dev_addr);
     GetNwkSEncKey(nwk_s_key);
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
     block_b[0] = 0x49;
     block_b[1] = 0x00;
@@ -1354,7 +1354,7 @@ void SlimLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t da
 
     block_b[5] = direction;
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     block_b[6] = dev_addr[3];
     block_b[7] = dev_addr[2];
     block_b[8] = dev_addr[1];
@@ -1364,7 +1364,7 @@ void SlimLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t da
     block_b[7] = DevAddr[2];
     block_b[8] = DevAddr[1];
     block_b[9] = DevAddr[0];
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
     block_b[10] = frame_counter & 0xFF;
     block_b[11] = frame_counter >> 8;
@@ -1375,11 +1375,11 @@ void SlimLoRa::CalculateMessageMic(uint8_t *data, uint8_t *final_mic, uint8_t da
     block_b[14] = 0x00;
     block_b[15] = data_length;
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     CalculateMic(nwk_s_key, data, block_b, final_mic, data_length);
 #else
     CalculateMic(NwkSKey, data, block_b, final_mic, data_length);
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 }
 
 /**
@@ -1687,12 +1687,12 @@ uint8_t SlimLoRa::GetRx2DataRate() {
     uint8_t value = eeprom_read_byte(&eeprom_lw_rx2_data_rate);
 
     if (value == 0xFF) {
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
         return SF12BW125;
 #else
         // TTN
         return SF9BW125;
-#endif
+#endif // LORAWAN_OTAA_ENABLED
     }
 
     return value;
@@ -1719,7 +1719,7 @@ void SlimLoRa::SetRx1Delay(uint8_t value) {
     eeprom_write_byte(&eeprom_lw_rx1_delay, value);
 }
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
 uint8_t eeprom_lw_dev_addr[4] EEMEM;
 uint16_t eeprom_lw_dev_nonce EEMEM = 1;
 uint32_t eeprom_lw_join_nonce EEMEM = 0;
@@ -1802,4 +1802,4 @@ void SlimLoRa::GetNwkSEncKey(uint8_t *key) {
 void SlimLoRa::SetNwkSEncKey(uint8_t *key) {
     eeprom_write_block(key, eeprom_lw_nwk_s_enc_key, 16);
 }
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED

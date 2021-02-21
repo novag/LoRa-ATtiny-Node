@@ -175,7 +175,7 @@ int main() {
 
     lora.Init();
 
-#if OTAA
+#if LORAWAN_OTAA_ENABLED
     while (!lora.HasJoined()) {
 #ifdef DEBUG
         debug(DSTR_JOINING);
@@ -183,7 +183,7 @@ int main() {
         lora.Join();
         _delay_ms(1000);
     }
-#endif // OTAA
+#endif // LORAWAN_OTAA_ENABLED
 
 #ifdef DEBUG
     debug(DSTR_JOINED);

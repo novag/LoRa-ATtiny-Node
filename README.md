@@ -30,7 +30,7 @@ To compile and flash this library, attach your USB-ASP programmer and execute th
 ```bash
 git clone https://github.com/novag/LoRa-ATtiny-Node
 cd LoRa-ATtiny-Node
-cp config.h.example config.h # Insert your key(s)
+cp config.example.h config.h # Insert your key(s)
 make
 make program
 ```
