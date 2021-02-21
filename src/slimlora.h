@@ -123,6 +123,9 @@
 #define LORAWAN_ADR_ACK_LIMIT   64
 #define LORAWAN_ADR_ACK_DELAY   32
 
+// EU868 region settings
+#define LORAWAN_EU868_TX_POWER_MAX          7
+
 // LoRaWAN Error
 #define LORAWAN_ERROR_NO_PACKET_RECEIVED    -1
 #define LORAWAN_ERROR_SIZE_EXCEEDED         -2

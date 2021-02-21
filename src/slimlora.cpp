@@ -108,8 +108,8 @@ void SlimLoRa::Init() {
     // LoRa mode
     RfmWrite(RFM_REG_OP_MODE, 0x80);
 
-    // PA_BOOST pin / +15 dBm output power
-    RfmWrite(RFM_REG_PA_CONFIG, 0xFD);
+    // PA_BOOST pin / +16 dBm output power
+    RfmWrite(RFM_REG_PA_CONFIG, 0xFE);
 
     // Preamble length: 8 symbols
     // 0x0008 + 4 = 12
@@ -804,7 +804,7 @@ end:
  * @param f_options_length Length of the frame options section.
  */
 void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
-    uint8_t new_data_rate;
+    uint8_t status, new_data_rate, tx_power;
 
     if (f_options_length == 0) {
         return;
@@ -816,16 +816,28 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 i += LORAWAN_FOPT_LINK_CHECK_ANS_SIZE;
                 break;
             case LORAWAN_FOPT_LINK_ADR_REQ:
+                status = 0x1;
                 new_data_rate = options[i + 1] >> 4;
-                if (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250) { // Reversed table index (SF7B250 higher)
-                    mDataRate = new_data_rate;
+                tx_power = options[i + 1] & 0xF;
 
-                    mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
-                    mPendingFopts.fopts[mPendingFopts.length++] = 0x2;
-                } else {
-                    mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
-                    mPendingFopts.fopts[mPendingFopts.length++] = 0;
+                if (new_data_rate == 0xF || (new_data_rate >= SF12BW125 && new_data_rate <= SF7BW250)) { // Reversed table index
+                    status |= 0x2;
                 }
+                if (tx_power == 0xF || tx_power <= LORAWAN_EU868_TX_POWER_MAX) {
+                    status |= 0x4;
+                }
+
+                if (status == 0x7) {
+                    if (new_data_rate != 0xF) {
+                        mDataRate = new_data_rate;
+                    }
+                    if (tx_power != 0xF) {
+                        RfmWrite(RFM_REG_PA_CONFIG, 0xF0 | (14 - tx_power * 2));
+                    }
+                }
+
+                mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
+                mPendingFopts.fopts[mPendingFopts.length++] = status;
 
                 i += LORAWAN_FOPT_LINK_ADR_REQ_SIZE;
                 break;
