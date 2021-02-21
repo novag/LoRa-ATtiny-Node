@@ -859,6 +859,11 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 i += LORAWAN_FOPT_NEW_CHANNEL_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_RX_TIMING_SETUP_REQ:
+                SetRx1Delay(options[i + 1] & 0xF);
+                mRx1DelayTicks = GetRx1Delay() * TICKS_PER_SECOND;
+
+                mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_TIMING_SETUP_ANS;
+
                 i += LORAWAN_FOPT_RX_TIMING_SETUP_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_TX_PARAM_SETUP_REQ:
