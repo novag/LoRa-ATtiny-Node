@@ -120,6 +120,9 @@
 #define LORAWAN_RX_SETUP_TICKS              2000 * TICKS_PER_SECOND / 1000000   // 2000 us
 #define LORAWAN_RX_MIN_SYMBOLS              6
 
+#define LORAWAN_FOPTS_MAX_SIZE              10
+#define LORAWAN_STICKY_FOPTS_MAX_SIZE       6
+
 // EU868 region settings
 #define LORAWAN_EU868_TX_POWER_MAX          7
 #define LORAWAN_EU868_RX1_DR_OFFSET_MAX     5
@@ -145,8 +148,13 @@
 
 typedef struct {
     uint8_t length;
-    uint8_t fopts[15];
+    uint8_t fopts[LORAWAN_FOPTS_MAX_SIZE];
 } fopts_t;
+
+typedef struct {
+    uint8_t length;
+    uint8_t fopts[LORAWAN_STICKY_FOPTS_MAX_SIZE];
+} sticky_fopts_t;
 
 class SlimLoRa {
   public:
@@ -169,6 +177,7 @@ class SlimLoRa {
     uint8_t adr_ack_counter_ = 0;
     uint8_t pseudo_byte_;
     fopts_t pending_fopts_ = {0};
+    fopts_t sticky_fopts_ = {0};
     uint8_t rx_symbols_ = LORAWAN_RX_MIN_SYMBOLS;
     unsigned long tx_done_tickstamp_;
     int8_t last_packet_snr_;

@@ -872,8 +872,8 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                     SetRx2DataRate(rx2_data_rate_);
                 }
 
-                pending_fopts_.fopts[pending_fopts_.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
-                pending_fopts_.fopts[pending_fopts_.length++] = status;
+                sticky_fopts_.fopts[sticky_fopts_.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
+                sticky_fopts_.fopts[sticky_fopts_.length++] = status;
 
                 i += LORAWAN_FOPT_RX_PARAM_SETUP_REQ_SIZE;
                 break;
@@ -892,7 +892,7 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 SetRx1Delay(options[i + 1] & 0xF);
                 rx1_delay_ticks_ = GetRx1Delay() * TICKS_PER_SECOND;
 
-                pending_fopts_.fopts[pending_fopts_.length++] = LORAWAN_FOPT_RX_TIMING_SETUP_ANS;
+                sticky_fopts_.fopts[sticky_fopts_.length++] = LORAWAN_FOPT_RX_TIMING_SETUP_ANS;
 
                 i += LORAWAN_FOPT_RX_TIMING_SETUP_REQ_SIZE;
                 break;
@@ -1015,6 +1015,10 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
         return LORAWAN_ERROR_INVALID_MIC;
     }
 
+    // Clear sticky fopts
+    memset(sticky_fopts_.fopts, 0, sticky_fopts_.length);
+    sticky_fopts_.length = 0;
+
     // Saves memory cycles, we could loose more than 3 packets if we don't receive a packet at all
     rx_frame_counter_ = frame_counter + 1;
     if (rx_frame_counter_ % 3) {
@@ -1103,7 +1107,7 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
             packet[packet_length] |= LORAWAN_FCTRL_ADR_ACK_REQ;
         }
     }
-    packet[packet_length++] |= pending_fopts_.length;
+    packet[packet_length++] |= pending_fopts_.length + sticky_fopts_.length;
 
     // Uplink frame counter
     packet[packet_length++] = tx_frame_counter_ & 0xFF;
@@ -1112,6 +1116,11 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     // Frame options
     for (uint8_t i = 0; i < pending_fopts_.length; i++) {
         packet[packet_length++] = pending_fopts_.fopts[i];
+    }
+
+    // Sticky Frame options
+    for (uint8_t i = 0; i < sticky_fopts_.length; i++) {
+        packet[packet_length++] = sticky_fopts_.fopts[i];
     }
 
     // Clear fopts
