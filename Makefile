@@ -26,6 +26,9 @@ INC := -I include
 ifdef DEBUG
 	CFLAGS += -DDEBUG
 endif
+ifdef BLINK
+	CFLAGS += -DBLINK
+endif
 
 hex: $(TARGET).hex
 

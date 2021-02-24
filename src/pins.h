@@ -24,4 +24,9 @@
 #define PIN_DS18B20 PINB
 #define PB_DS18B20  PB4
 
+#define DDR_BLINK   DDRB
+#define PRT_BLINK   PORTB
+#define PIN_BLINK   PINB
+#define PB_BLINK    PB4
+
 #endif

@@ -159,8 +159,16 @@ int main() {
 #ifdef DEBUG
     debug(DSTR_BOOTED);
 #endif
+#ifdef BLINK
+    SETBIT(DDR_BLINK, PB_BLINK);
+    SETBIT(PRT_BLINK, PB_BLINK);
+#endif
 
-    _delay_ms(1000);
+    _delay_ms(500);
+
+#ifdef BLINK
+    CLEARBIT(PRT_BLINK, PB_BLINK);
+#endif
 
 #if ENABLE_I2C_MASTER
     SETBIT(DDR_I2C_SCL, PB_I2C_SCL);
@@ -187,6 +195,20 @@ int main() {
 
 #ifdef DEBUG
     debug(DSTR_JOINED);
+#endif
+#ifdef BLINK
+    SETBIT(PRT_BLINK, PB_BLINK);
+    _delay_ms(125);
+    CLEARBIT(PRT_BLINK, PB_BLINK);
+    _delay_ms(125);
+    SETBIT(PRT_BLINK, PB_BLINK);
+    _delay_ms(125);
+    CLEARBIT(PRT_BLINK, PB_BLINK);
+    _delay_ms(125);
+    SETBIT(PRT_BLINK, PB_BLINK);
+    _delay_ms(125);
+    CLEARBIT(PRT_BLINK, PB_BLINK);
+    _delay_ms(125);
 #endif
 
 #if ENABLE_I2C_MASTER
@@ -277,7 +299,17 @@ int main() {
             SPI.SetDataMode(SPI_MODE0);
             SPI.Init();
 #endif
+#ifdef BLINK
+            SETBIT(PRT_BLINK, PB_BLINK);
+            _delay_ms(200);
+            CLEARBIT(PRT_BLINK, PB_BLINK);
+#endif
             lora.SendData(fport, payload, payload_length);
+#ifdef BLINK
+            SETBIT(PRT_BLINK, PB_BLINK);
+            _delay_ms(500);
+            CLEARBIT(PRT_BLINK, PB_BLINK);
+#endif
 #if ENABLE_I2C_MASTER
             SPI.End();
 #endif
