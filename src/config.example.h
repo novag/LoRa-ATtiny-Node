@@ -12,6 +12,7 @@
 
 // Enable LoRaWAN Over-The-Air Activation
 #define LORAWAN_OTAA_ENABLED    1
+#define LORAWAN_KEEP_SESSION    0
 
 #define ENABLE_DHT22        1
 #define ENABLE_SI7021       0

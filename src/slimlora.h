@@ -215,6 +215,10 @@ class SlimLoRa {
     uint8_t GetRx1Delay();
     void SetRx1Delay(uint8_t value);
 
+#if LORAWAN_KEEP_SESSION
+    bool GetHasJoined();
+    void SetHasJoined(bool value);
+#endif // LORAWAN_KEEP_SESSION
     void GetDevAddr(uint8_t *dev_addr);
     void SetDevAddr(uint8_t *dev_addr);
     uint16_t GetDevNonce();

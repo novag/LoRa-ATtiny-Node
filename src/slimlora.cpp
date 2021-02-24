@@ -128,10 +128,13 @@ void SlimLoRa::Init() {
     RfmWrite(RFM_REG_FIFO_TX_BASE_ADDR, 0x80);
     RfmWrite(RFM_REG_FIFO_RX_BASE_ADDR, 0x00);
 
+    // Init MAC state
+    has_joined_ = GetHasJoined();
     tx_frame_counter_ = GetTxFrameCounter();
     rx_frame_counter_ = GetRxFrameCounter();
     rx2_data_rate_ = GetRx2DataRate();
     rx1_delay_ticks_ = GetRx1Delay() * TICKS_PER_SECOND;
+    rx1_data_rate_offset_ = GetRx1DataRateOffset();
 }
 
 /**
@@ -783,6 +786,9 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     adr_ack_counter_ = 0;
 
     has_joined_ = true;
+#if LORAWAN_KEEP_SESSION
+    SetHasJoined(true);
+#endif // LORAWAN_KEEP_SESSION
 
     result = 0;
 
@@ -1720,6 +1726,9 @@ void SlimLoRa::SetRx1Delay(uint8_t value) {
 }
 
 #if LORAWAN_OTAA_ENABLED
+#if LORAWAN_KEEP_SESSION
+uint8_t eeprom_lw_has_joined EEMEM = 0;
+#endif // LORAWAN_KEEP_SESSION
 uint8_t eeprom_lw_dev_addr[4] EEMEM;
 uint16_t eeprom_lw_dev_nonce EEMEM = 1;
 uint32_t eeprom_lw_join_nonce EEMEM = 0;
@@ -1727,6 +1736,18 @@ uint8_t eeprom_lw_app_s_key[16] EEMEM;
 uint8_t eeprom_lw_f_nwk_s_int_key[16] EEMEM;
 uint8_t eeprom_lw_s_nwk_s_int_key[16] EEMEM;
 uint8_t eeprom_lw_nwk_s_enc_key[16] EEMEM;
+
+#if LORAWAN_KEEP_SESSION
+bool SlimLoRa::GetHasJoined() {
+    uint8_t value = eeprom_read_byte(&eeprom_lw_has_joined);
+
+    return value == 0x01;
+}
+
+void SlimLoRa::SetHasJoined(bool value) {
+    eeprom_write_byte(&eeprom_lw_has_joined, value);
+}
+#endif // LORAWAN_KEEP_SESSION
 
 // DevAddr
 void SlimLoRa::GetDevAddr(uint8_t *dev_addr) {
